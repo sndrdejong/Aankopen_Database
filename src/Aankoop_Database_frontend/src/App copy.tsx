@@ -337,7 +337,7 @@ function App() {
       </CollapsibleSection>
       
       {/* --- Add Purchase Section --- */}
-      <CollapsibleSection title="Nieuwe Aankoop Toevoegen">
+      <CollapsibleSection title="Nieuwe Aankoop Toevoegen" startOpen={true}>
         <form onSubmit={handleAddAankoop} style={formStyle}>
             {/* Searchable Product Dropdown */}
             <input 
@@ -401,34 +401,13 @@ function App() {
 
       {/* --- Price Finder Section --- */}
       <section style={sectionStyle}>
-        <h2>Beste Prijs Vinder</h2>
+        <h2>Boodschappenlijst & Beste Prijs Vinder</h2>
         <table style={tableStyle}>
             <thead>
                 <tr><th style={thStyle}>Product</th><th style={thStyle}>Actie</th><th style={thStyle}>Beste Keuze</th></tr>
             </thead>
             <tbody>
-                {products
-                    .slice() // Create a copy to sort
-                    .sort((a, b) => {
-                        const bestPriceA = bestPrices.get(a.id);
-                        const bestPriceB = bestPrices.get(b.id);
-
-                        // Group products with a found price at the top
-                        if (bestPriceA && !bestPriceB) return -1;
-                        if (!bestPriceA && bestPriceB) return 1;
-
-                        // If both have a price, sort by the store name
-                        if (bestPriceA && bestPriceB) {
-                            const winkelCompare = bestPriceA.winkelNaam.localeCompare(bestPriceB.winkelNaam);
-                            // If store names are different, we've found our order
-                            if (winkelCompare !== 0) return winkelCompare;
-                        }
-                        
-                        // Fallback sort: either both have no price, or they share a best-price store
-                        // In both cases, sort by product name
-                        return a.naam.localeCompare(b.naam);
-                    })
-                    .map(p => (
+                {products.map(p => (
                     <tr key={Number(p.id)}>
                         <td style={tdStyle}>{p.naam} ({p.merk})</td>
                         <td style={tdStyle}><button onClick={() => handleFindBestPrice(p.id)}>Vind Beste Prijs</button></td>

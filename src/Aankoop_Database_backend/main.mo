@@ -119,6 +119,105 @@ persistent actor BoodschappenDB {
     return id;
   };
 
+  public shared (_) func deleteAankoop(id : Nat) : async Result.Result<Null, Text> {
+    if (Map.get(aankopen, Map.nhash, id) != null) {
+      Map.delete(aankopen, Map.nhash, id);
+      return #ok(null);
+    } else {
+      return #err("Aankoop met deze ID niet gevonden.");
+    };
+  };
+  
+  // ==========================================================
+  // NIEUWE FUNCTIES VOOR WIJZIGEN EN VERWIJDEREN
+  // ==========================================================
+  
+  /**
+   * Wijzigt een bestaande winkel.
+   */
+  public shared (_) func updateWinkel(id : Nat, naam : Text, keten : Text, land : Land) : async Result.Result<Null, Text> {
+    switch (Map.get(winkels, Map.nhash, id)) {
+      case (null) {
+        return #err("Winkel met deze ID niet gevonden.");
+      };
+      case (?_) {
+        let updatedWinkel : Winkel = { id; naam; keten; land };
+        Map.set(winkels, Map.nhash, id, updatedWinkel);
+        return #ok(null);
+      };
+    };
+  };
+
+  /**
+   * Verwijdert een winkel, maar alleen als er geen aankopen aan gekoppeld zijn.
+   */
+  public shared (_) func deleteWinkel(id : Nat) : async Result.Result<Null, Text> {
+    // Controleer eerst of de winkel bestaat
+    if (Map.get(winkels, Map.nhash, id) == null) {
+      return #err("Winkel met deze ID niet gevonden.");
+    };
+
+    // Controleer of er aankopen aan deze winkel gekoppeld zijn
+    for ((_, aankoop) in Map.entries(aankopen)) {
+      if (aankoop.winkelId == id) {
+        return #err("Kan winkel niet verwijderen: er zijn nog aankopen aan gekoppeld.");
+      };
+    };
+
+    // Als er geen aankopen zijn, verwijder de winkel
+    Map.delete(winkels, Map.nhash, id);
+    return #ok(null);
+  };
+  
+  /**
+   * Wijzigt een bestaand product.
+   */
+  public shared (_) func updateProduct(id : Nat, naam : Text, merk : Text, trefwoorden : [Text], standaardEenheid : Eenheid) : async Result.Result<Null, Text> {
+    switch (Map.get(producten, Map.nhash, id)) {
+      case (null) {
+        return #err("Product met deze ID niet gevonden.");
+      };
+      case (?_) {
+        let updatedProduct : Product = { id; naam; merk; trefwoorden; standaardEenheid };
+        Map.set(producten, Map.nhash, id, updatedProduct);
+        return #ok(null);
+      };
+    };
+  };
+  
+  /**
+   * Verwijdert een product, maar alleen als er geen aankopen aan gekoppeld zijn.
+   */
+  public shared (_) func deleteProduct(id : Nat) : async Result.Result<Null, Text> {
+    // Controleer eerst of het product bestaat
+    if (Map.get(producten, Map.nhash, id) == null) {
+      return #err("Product met deze ID niet gevonden.");
+    };
+
+    // Controleer of er aankopen aan dit product gekoppeld zijn
+    for ((_, aankoop) in Map.entries(aankopen)) {
+      if (aankoop.productId == id) {
+        return #err("Kan product niet verwijderen: er zijn nog aankopen aan gekoppeld.");
+      };
+    };
+
+    // Als er geen aankopen zijn, verwijder het product
+    Map.delete(producten, Map.nhash, id);
+    return #ok(null);
+  };
+  
+  // ==========================================================
+  // EINDE NIEUWE FUNCTIES
+  // ==========================================================
+
+  private func berekenEenheidsprijs(aankoop : Aankoop) : ?Float {
+    if (aankoop.hoeveelheid > 0) {
+      return ?(aankoop.prijs / aankoop.hoeveelheid);
+    } else {
+      return null;
+    };
+  };
+
   public query func getWinkels() : async [Winkel] {
     return Iter.toArray(Map.vals(winkels));
   };
@@ -140,23 +239,6 @@ persistent actor BoodschappenDB {
       };
     };
     return Buffer.toArray(result);
-  };
-
-  public shared (_) func deleteAankoop(id : Nat) : async Result.Result<Null, Text> {
-    if (Map.get(aankopen, Map.nhash, id) != null) {
-      Map.delete(aankopen, Map.nhash, id);
-      return #ok(null);
-    } else {
-      return #err("Aankoop met deze ID niet gevonden.");
-    };
-  };
-
-  private func berekenEenheidsprijs(aankoop : Aankoop) : ?Float {
-    if (aankoop.hoeveelheid > 0) {
-      return ?(aankoop.prijs / aankoop.hoeveelheid);
-    } else {
-      return null;
-    };
   };
 
   public query func findBestPrice(productId : Nat) : async ?BestePrijsInfo {

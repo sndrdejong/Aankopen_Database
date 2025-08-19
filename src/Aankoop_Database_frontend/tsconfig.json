@@ -15,7 +15,14 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+
+    // ADD THESE LINES to resolve the 'declarations' import error
+    "baseUrl": ".",
+    "paths": {
+      "declarations/*": ["../declarations/*"]
+    }
+    // END OF ADDED LINES
   },
   "include": ["src"]
 }

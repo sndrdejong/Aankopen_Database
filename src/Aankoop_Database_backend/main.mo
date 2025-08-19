@@ -12,14 +12,8 @@ persistent actor BoodschappenDB {
 
   public type Land = { #NL; #ES };
   public type Eenheid = {
-    #STUK;
-    #METER;
-    #KILOGRAM;
-    #GRAM;
-    #LITER;
-    #MILLILITER;
-    #ROL;
-    #TABLET;
+    #STUK; #METER; #KILOGRAM; #GRAM;
+    #LITER; #MILLILITER; #ROL; #TABLET;
   };
   public type Winkel = { id : Nat; naam : Text; keten : Text; land : Land };
   public type Product = {
@@ -47,7 +41,6 @@ persistent actor BoodschappenDB {
     eenheid : Eenheid;
   };
 
-  // Stable arrays for upgrade persistence (actor-level vars are implicitly stable)
   var winkelsData : [(Nat, Winkel)] = [];
   var productenData : [(Nat, Product)] = [];
   var aankopenData : [(Nat, Aankoop)] = [];
@@ -55,7 +48,6 @@ persistent actor BoodschappenDB {
   var nextProductId : Nat = 0;
   var nextAankoopId : Nat = 0;
 
-  // Non-stable Maps - Use Map.new for initialization
   var winkels = Map.new<Nat, Winkel>();
   var producten = Map.new<Nat, Product>();
   var aankopen = Map.new<Nat, Aankoop>();
@@ -82,12 +74,7 @@ persistent actor BoodschappenDB {
 
   public shared (_) func addWinkel(naam : Text, keten : Text, land : Land) : async Nat {
     let id = nextWinkelId;
-    let newWinkel : Winkel = {
-      id = id;
-      naam = naam;
-      keten = keten;
-      land = land;
-    };
+    let newWinkel : Winkel = { id; naam; keten; land; };
     Map.set(winkels, Map.nhash, id, newWinkel);
     nextWinkelId += 1;
     return id;
@@ -173,35 +160,52 @@ persistent actor BoodschappenDB {
   };
 
   public query func findBestPrice(productId : Nat) : async ?BestePrijsInfo {
-    // Stap 1: Vind de meest recente aankoop voor elke winkel
     var laatsteAankopenPerWinkel = Map.new<Nat, Aankoop>();
 
     for ((_, aankoop) in Map.entries(aankopen)) {
       if (aankoop.productId == productId) {
         let winkelId = aankoop.winkelId;
         let bestaandeAankoopOpt = Map.get(laatsteAankopenPerWinkel, Map.nhash, winkelId);
-
         let isNieuwer = switch (bestaandeAankoopOpt) {
-          case (null) true; // Geen bestaande, dus deze is de "nieuwste"
-          case (?bestaande) aankoop.datum > bestaande.datum; // Is de huidige nieuwer?
+          case (null) true;
+          case (?bestaande) aankoop.datum > bestaande.datum;
         };
-
         if (isNieuwer) {
           Map.set(laatsteAankopenPerWinkel, Map.nhash, winkelId, aankoop);
         };
       };
     };
 
-    // Stap 2: Vind de beste prijs in de lijst van meest recente aankopen
-    var bestePrijsOpt : ?Float = null;
     var besteInfo : ?BestePrijsInfo = null;
 
-    for ((_, aankoop) in Map.entries(laatsteAankopenPerWinkel)) {
-      // ... (de rest van de logica is bijna identiek aan het origineel)
-      // Bereken eenheidsprijs, vergelijk, en update 'besteInfo'
-      // ...
+    for ((winkelId, aankoop) in Map.entries(laatsteAankopenPerWinkel)) {
+      switch (berekenEenheidsprijs(aankoop)) {
+        case (?huidigeEenheidsprijs) {
+          let isBeter = switch (besteInfo) {
+            case (null) true;
+            case (?vorigeBeste) huidigeEenheidsprijs < vorigeBeste.eenheidsprijs;
+          };
+          if (isBeter) {
+            let productOpt = Map.get(producten, Map.nhash, aankoop.productId);
+            let winkelOpt = Map.get(winkels, Map.nhash, aankoop.winkelId);
+            switch (productOpt, winkelOpt) {
+              case (?product, ?winkel) {
+                besteInfo := ?{
+                  productNaam = product.naam;
+                  winkelNaam = winkel.naam;
+                  land = winkel.land;
+                  datum = aankoop.datum;
+                  eenheidsprijs = huidigeEenheidsprijs;
+                  eenheid = product.standaardEenheid;
+                };
+              };
+              case (_, _) {};
+            };
+          };
+        };
+        case (null) {};
+      };
     };
-
     return besteInfo;
   };
 };

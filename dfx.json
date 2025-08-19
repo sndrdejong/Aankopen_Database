@@ -1,0 +1,26 @@
+{
+  "canisters": {
+    "Aankoop_Database_backend": {
+      "main": "src/Aankoop_Database_backend/main.mo",
+      "type": "motoko"
+    },
+    "Aankoop_Database_frontend": {
+      "dependencies": [
+        "Aankoop_Database_backend"
+      ],
+      "source": [
+        "src/Aankoop_Database_frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "Aankoop_Database_frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

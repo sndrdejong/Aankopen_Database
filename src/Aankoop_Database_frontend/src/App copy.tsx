@@ -37,7 +37,13 @@ function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [aankopen, setAankopen] = useState<AankoopExtended[]>([]);
   const [bestPrices, setBestPrices] = useState<Map<bigint, BestPriceByCountry>>(new Map());
+
+  // --- NIEUWE LOADING STATES ---
   const [isLoadingPrices, setIsLoadingPrices] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [updatingItemId, setUpdatingItemId] = useState<bigint | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<bigint | null>(null);
+
 
   // State for forms
   const [formWinkel, setFormWinkel] = useState({ naam: '', keten: '', land: { NL: null } as Land });
@@ -86,7 +92,6 @@ function App() {
       setWinkels(await backend.getWinkels());
       setProducts(await backend.getProducts());
       setAankopen(await backend.getAankopen());
-      // Haal nu ook de beste prijzen op bij het starten
       await fetchBestPrices();
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -100,20 +105,36 @@ function App() {
   // --- WINKEL HANDLERS ---
   const handleAddWinkel = async (e: React.FormEvent) => {
     e.preventDefault();
-    await backend.addWinkel(formWinkel.naam, formWinkel.keten, formWinkel.land);
-    alert("Winkel succesvol toegevoegd!");
-    setFormWinkel({ naam: '', keten: '', land: { NL: null } as Land });
-    fetchAllData();
+    setIsSubmitting(true);
+    try {
+      await backend.addWinkel(formWinkel.naam, formWinkel.keten, formWinkel.land);
+      alert("Winkel succesvol toegevoegd!");
+      setFormWinkel({ naam: '', keten: '', land: { NL: null } as Land });
+      fetchAllData();
+    } catch (error) {
+      alert("Fout bij toevoegen van winkel.");
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDeleteWinkel = async (id: bigint) => {
     if (window.confirm("Weet je zeker dat je deze winkel wilt verwijderen? Dit kan alleen als er geen aankopen aan gekoppeld zijn.")) {
-      const result = await backend.deleteWinkel(id);
-      if ('ok' in result) {
-        alert("Winkel succesvol verwijderd.");
-        fetchAllData();
-      } else {
-        alert(`Fout bij verwijderen: ${result.err}`);
+      setDeletingItemId(id);
+      try {
+        const result = await backend.deleteWinkel(id);
+        if ('ok' in result) {
+          alert("Winkel succesvol verwijderd.");
+          fetchAllData();
+        } else {
+          alert(`Fout bij verwijderen: ${result.err}`);
+        }
+      } catch (error) {
+        alert("Fout bij verwijderen van winkel.");
+        console.error(error);
+      } finally {
+        setDeletingItemId(null);
       }
     }
   };
@@ -124,13 +145,21 @@ function App() {
       alert("Naam en keten mogen niet leeg zijn.");
       return;
     }
-    const result = await backend.updateWinkel(id, naam, keten, land);
-    if ('ok' in result) {
-      alert("Winkel succesvol bijgewerkt.");
-      setEditingWinkelId(null);
-      fetchAllData();
-    } else {
-      alert(`Fout bij bijwerken: ${result.err}`);
+    setUpdatingItemId(id);
+    try {
+      const result = await backend.updateWinkel(id, naam, keten, land);
+      if ('ok' in result) {
+        alert("Winkel succesvol bijgewerkt.");
+        setEditingWinkelId(null);
+        fetchAllData();
+      } else {
+        alert(`Fout bij bijwerken: ${result.err}`);
+      }
+    } catch (error) {
+      alert("Fout bij bijwerken van winkel.");
+      console.error(error);
+    } finally {
+      setUpdatingItemId(null);
     }
   };
 
@@ -142,23 +171,39 @@ function App() {
   // --- PRODUCT HANDLERS ---
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { naam, merk, standaardEenheid } = formProduct;
-    const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk;
-    const trefwoordenArray: string[] = ['n.v.t.'];
-    await backend.addProduct(naam, finalMerk, trefwoordenArray, standaardEenheid);
-    alert("Product succesvol toegevoegd!");
-    setFormProduct({ naam: '', merk: '', standaardEenheid: { STUK: null } as Eenheid });
-    fetchAllData();
+    setIsSubmitting(true);
+    try {
+      const { naam, merk, standaardEenheid } = formProduct;
+      const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk;
+      const trefwoordenArray: string[] = ['n.v.t.'];
+      await backend.addProduct(naam, finalMerk, trefwoordenArray, standaardEenheid);
+      alert("Product succesvol toegevoegd!");
+      setFormProduct({ naam: '', merk: '', standaardEenheid: { STUK: null } as Eenheid });
+      fetchAllData();
+    } catch (error) {
+      alert("Fout bij toevoegen van product.");
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDeleteProduct = async (id: bigint) => {
     if (window.confirm("Weet je zeker dat je dit product wilt verwijderen? Dit kan alleen als er geen aankopen aan gekoppeld zijn.")) {
-      const result = await backend.deleteProduct(id);
-      if ('ok' in result) {
-        alert("Product succesvol verwijderd.");
-        fetchAllData();
-      } else {
-        alert(`Fout bij verwijderen: ${result.err}`);
+      setDeletingItemId(id);
+      try {
+        const result = await backend.deleteProduct(id);
+        if ('ok' in result) {
+          alert("Product succesvol verwijderd.");
+          fetchAllData();
+        } else {
+          alert(`Fout bij verwijderen: ${result.err}`);
+        }
+      } catch (error) {
+        alert("Fout bij verwijderen van product.");
+        console.error(error);
+      } finally {
+        setDeletingItemId(null);
       }
     }
   };
@@ -169,16 +214,24 @@ function App() {
       alert("Naam mag niet leeg zijn.");
       return;
     }
-    const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk;
-    const trefwoordenArray = trefwoorden.split(',').map(t => t.trim()).filter(t => t);
-    const result = await backend.updateProduct(id, naam, finalMerk, trefwoordenArray, standaardEenheid);
+    setUpdatingItemId(id);
+    try {
+      const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk;
+      const trefwoordenArray = trefwoorden.split(',').map(t => t.trim()).filter(t => t);
+      const result = await backend.updateProduct(id, naam, finalMerk, trefwoordenArray, standaardEenheid);
 
-    if ('ok' in result) {
-      alert("Product succesvol bijgewerkt.");
-      setEditingProductId(null);
-      fetchAllData();
-    } else {
-      alert(`Fout bij bijwerken: ${result.err}`);
+      if ('ok' in result) {
+        alert("Product succesvol bijgewerkt.");
+        setEditingProductId(null);
+        fetchAllData();
+      } else {
+        alert(`Fout bij bijwerken: ${result.err}`);
+      }
+    } catch (error) {
+      alert("Fout bij bijwerken van product.");
+      console.error(error);
+    } finally {
+      setUpdatingItemId(null);
     }
   };
 
@@ -195,27 +248,41 @@ function App() {
   // --- AANKOOP HANDLERS ---
   const handleAddAankoop = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { productId, winkelId, bonOmschrijving, prijs, hoeveelheid } = formAankoop;
-    await backend.addAankoop(
-      BigInt(productId), BigInt(winkelId), bonOmschrijving, parseFloat(prijs), parseFloat(hoeveelheid)
-    );
-    alert("Aankoop succesvol toegevoegd!");
-    setFormAankoop({ productId: '', winkelId: '', bonOmschrijving: '', prijs: '', hoeveelheid: '' });
-    setProductSearch('');
-    setWinkelSearch('');
-    // Roep fetchAllData aan om ook de beste prijzen te verversen na een nieuwe aankoop
-    await fetchAllData();
+    setIsSubmitting(true);
+    try {
+      const { productId, winkelId, bonOmschrijving, prijs, hoeveelheid } = formAankoop;
+      await backend.addAankoop(
+        BigInt(productId), BigInt(winkelId), bonOmschrijving, parseFloat(prijs), parseFloat(hoeveelheid)
+      );
+      alert("Aankoop succesvol toegevoegd!");
+      setFormAankoop({ productId: '', winkelId: '', bonOmschrijving: '', prijs: '', hoeveelheid: '' });
+      setProductSearch('');
+      setWinkelSearch('');
+      await fetchAllData();
+    } catch (error) {
+      alert("Fout bij toevoegen van aankoop.");
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDeleteAankoop = async (id: bigint) => {
     if (window.confirm("Weet je zeker dat je deze aankoop wilt verwijderen?")) {
-      await backend.deleteAankoop(id);
-      // Roep fetchAllData aan om ook de beste prijzen te verversen
-      await fetchAllData();
+      setDeletingItemId(id);
+      try {
+        await backend.deleteAankoop(id);
+        await fetchAllData();
+      } catch (error) {
+        alert("Fout bij verwijderen van aankoop.");
+        console.error(error);
+      } finally {
+        setDeletingItemId(null);
+      }
     }
   };
 
-  // --- BEST PRICE FINDER LOGIC (VERNIEUWD) ---
+  // --- BEST PRICE FINDER LOGIC ---
   const handleFindAllBestPrices = async () => {
     await fetchBestPrices();
     alert("Beste prijzen zijn opnieuw berekend!");
@@ -240,34 +307,59 @@ function App() {
 
   const PriceFinderTable = ({ countryCode }: { countryCode: 'NL' | 'ES' }) => {
     const sortedProducts = useMemo(() => {
-      return products.slice().sort((a, b) => a.naam.localeCompare(b.naam));
-    }, [products]);
+      // Sorteer producten die een beste prijs hebben in het geselecteerde land
+      return products
+        .filter(p => bestPrices.has(p.id) && bestPrices.get(p.id)![countryCode] !== undefined)
+        .sort((a, b) => a.naam.localeCompare(b.naam));
+    }, [products, bestPrices, countryCode]);
+
     return (
       <div className="table-container">
         <table>
           <thead>
             <tr>
+              {/* --- AANGEPAST: Aparte kolommen voor duidelijkheid --- */}
               <th>Product</th>
-              <th>Beste Keuze in {countryCode}</th>
+              <th>Merk</th>
+              <th>Winkel</th>
+              <th>Prijs</th>
             </tr>
           </thead>
           <tbody>
             {sortedProducts.map(p => {
-              const pricesForProduct = bestPrices.get(p.id);
-              const bestPriceInCountry = pricesForProduct?.[countryCode];
+              // We weten al dat de prijs bestaat door de filter in useMemo
+              const bestPriceInCountry = bestPrices.get(p.id)![countryCode]!;
+
               return (
                 <tr key={Number(p.id)}>
-                  <td data-label="Product">{p.naam} <span className="merk-text">({p.merk})</span></td>
-                  <td data-label={`Beste Keuze in ${countryCode}`}>
-                    {bestPriceInCountry ?
-                      `${bestPriceInCountry.winkelNaam}: €${bestPriceInCountry.eenheidsprijs.toFixed(2)} ${formatEenheid(bestPriceInCountry.eenheid)}`
-                      : '-'}
+                  {/* --- AANGEPAST: Data opgesplitst in aparte cellen --- */}
+
+                  <td data-label="Product">
+                    {p.naam}
+                  </td>
+
+                  <td data-label="Merk">
+                    {p.merk}
+                  </td>
+
+                  <td data-label="Winkel">
+                    {bestPriceInCountry.winkelNaam}
+                  </td>
+
+                  <td data-label="Prijs">
+                    {`€${bestPriceInCountry.eenheidsprijs.toFixed(2)} ${formatEenheid(bestPriceInCountry.eenheid)}`}
                   </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+        {/* Toon een bericht als er geen producten zijn voor dit land */}
+        {sortedProducts.length === 0 && (
+          <p style={{ textAlign: 'center', padding: '1rem' }}>
+            Nog geen prijzen gevonden voor {countryCode === 'NL' ? 'Nederland' : 'Spanje'}.
+          </p>
+        )}
       </div>
     );
   };
@@ -288,7 +380,9 @@ function App() {
               <option value="NL">Nederland</option>
               <option value="ES">Spanje</option>
             </select>
-            <button type="submit" className="button-primary">Voeg Winkel Toe</button>
+            <button type="submit" className="button-primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Bezig...' : 'Voeg Winkel Toe'}
+            </button>
           </form>
 
           <CollapsibleSection title="Bekijk Bestaande Winkels">
@@ -312,7 +406,9 @@ function App() {
                           <td data-label="Naam"><input type="text" value={editingWinkelData.naam} onChange={e => setEditingWinkelData({ ...editingWinkelData, naam: e.target.value })} /></td>
                           <td data-label="Keten"><input type="text" value={editingWinkelData.keten} onChange={e => setEditingWinkelData({ ...editingWinkelData, keten: e.target.value })} /></td>
                           <td data-label="Acties" className="action-buttons">
-                            <button onClick={() => handleUpdateWinkel(w.id)} className="button-success">Opslaan</button>
+                            <button onClick={() => handleUpdateWinkel(w.id)} className="button-success" disabled={updatingItemId === w.id}>
+                              {updatingItemId === w.id ? 'Opslaan...' : 'Opslaan'}
+                            </button>
                             <button onClick={() => setEditingWinkelId(null)} className="button-secondary">Annuleren</button>
                           </td>
                         </>
@@ -323,7 +419,9 @@ function App() {
                           <td data-label="Keten">{w.keten}</td>
                           <td data-label="Acties" className="action-buttons">
                             <button onClick={() => startEditingWinkel(w)} className="button-secondary">Wijzig</button>
-                            <button onClick={() => handleDeleteWinkel(w.id)} className="button-danger">Verwijder</button>
+                            <button onClick={() => handleDeleteWinkel(w.id)} className="button-danger" disabled={deletingItemId === w.id}>
+                              {deletingItemId === w.id ? '...' : 'Verwijder'}
+                            </button>
                           </td>
                         </>
                       )}
@@ -345,7 +443,9 @@ function App() {
             }} required>
               {[...eenheidOptions].sort().map(key => <option key={key} value={key}>{key.charAt(0) + key.slice(1).toLowerCase()}</option>)}
             </select>
-            <button type="submit" className="button-primary">Voeg Product Toe</button>
+            <button type="submit" className="button-primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Bezig...' : 'Voeg Product Toe'}
+            </button>
           </form>
 
           <CollapsibleSection title="Bekijk Bestaande Producten">
@@ -365,7 +465,9 @@ function App() {
                           <td data-label="Merk"><input type="text" placeholder="Merk (optioneel)" value={editingProductData.merk} onChange={e => setEditingProductData({ ...editingProductData, merk: e.target.value })} /></td>
                           <td data-label="Eenheid">{formatEenheid(editingProductData.standaardEenheid).replace('per ', '')}</td>
                           <td data-label="Acties" className="action-buttons">
-                            <button onClick={() => handleUpdateProduct(p.id)} className="button-success">Opslaan</button>
+                            <button onClick={() => handleUpdateProduct(p.id)} className="button-success" disabled={updatingItemId === p.id}>
+                              {updatingItemId === p.id ? 'Opslaan...' : 'Opslaan'}
+                            </button>
                             <button onClick={() => setEditingProductId(null)} className="button-secondary">Annuleren</button>
                           </td>
                         </>
@@ -376,7 +478,9 @@ function App() {
                           <td data-label="Eenheid">{formatEenheid(p.standaardEenheid).replace('per ', '')}</td>
                           <td data-label="Acties" className="action-buttons">
                             <button onClick={() => startEditingProduct(p)} className="button-secondary">Wijzig</button>
-                            <button onClick={() => handleDeleteProduct(p.id)} className="button-danger">Verwijder</button>
+                            <button onClick={() => handleDeleteProduct(p.id)} className="button-danger" disabled={deletingItemId === p.id}>
+                              {deletingItemId === p.id ? '...' : 'Verwijder'}
+                            </button>
                           </td>
                         </>
                       )}
@@ -428,7 +532,9 @@ function App() {
                 {selectedProductForAankoop ? formatEenheid(selectedProductForAankoop.standaardEenheid).replace('per ', '') : '...'}
               </span>
             </div>
-            <button type="submit" className="button-primary">Voeg Aankoop Toe</button>
+            <button type="submit" className="button-primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Bezig...' : 'Voeg Aankoop Toe'}
+            </button>
           </form>
         </CollapsibleSection>
 
@@ -453,21 +559,18 @@ function App() {
                 <tr>
                   <th>Product</th>
                   <th>Winkel</th>
-                  <th>Land</th>{/* NIEUW */}
+                  <th>Land</th>
                   <th>Prijs</th>
                   <th>Hoeveelheid</th>
-                  <th>Eenheid</th>{/* NIEUW */}
+                  <th>Eenheid</th>
                   <th>Datum</th>
                   <th>Actie</th>
                 </tr>
               </thead>
               <tbody>
                 {aankopen.slice().sort(([a], [b]) => Number(b.datum) - Number(a.datum)).map(([aankoop, prodNaam, winkelNaam]) => {
-                  // --- Logica om de juiste winkel en product te vinden ---
                   const winkel = winkels.find(w => w.id === aankoop.winkelId);
                   const product = products.find(p => p.id === aankoop.productId);
-
-                  // --- Haal land en eenheid op uit de gevonden objecten ---
                   const land = winkel ? Object.keys(winkel.land)[0] : 'n/a';
                   const eenheid = product ? formatEenheid(product.standaardEenheid).replace('per ', '') : 'n/a';
 
@@ -475,12 +578,16 @@ function App() {
                     <tr key={Number(aankoop.id)}>
                       <td data-label="Product">{prodNaam}</td>
                       <td data-label="Winkel">{winkelNaam}</td>
-                      <td data-label="Land">{land}</td> {/* NIEUW */}
+                      <td data-label="Land">{land}</td>
                       <td data-label="Prijs">€{aankoop.prijs.toFixed(2)}</td>
                       <td data-label="Hoeveelheid">{aankoop.hoeveelheid}</td>
-                      <td data-label="Eenheid">{eenheid}</td> {/* NIEUW */}
+                      <td data-label="Eenheid">{eenheid}</td>
                       <td data-label="Datum">{new Date(Number(aankoop.datum) / 1_000_000).toLocaleDateString()}</td>
-                      <td data-label="Actie"><button onClick={() => handleDeleteAankoop(aankoop.id)} className="button-danger">Verwijder</button></td>
+                      <td data-label="Actie">
+                        <button onClick={() => handleDeleteAankoop(aankoop.id)} className="button-danger" disabled={deletingItemId === aankoop.id}>
+                          {deletingItemId === aankoop.id ? '...' : 'Verwijder'}
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}

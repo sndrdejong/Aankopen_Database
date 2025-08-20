@@ -266,4 +266,54 @@ tbody tr:hover {
     font-weight: 600;
     margin-right: 1rem;
   }
+
+  /* --- Extra mobiele optimalisaties voor witruimte --- */
+
+  /* Verminder de ruimte rond de hele app */
+  .app-container {
+    padding: 0.75rem;
+  }
+
+  /* Maak de hoofdtitel iets compacter */
+  .app-header {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border-radius: var(--border-radius); /* Behoud de radius voor consistentie */
+  }
+
+  .app-header h1 {
+    font-size: 1.4rem;
+  }
+
+  /* Verminder de verticale ruimte tussen de hoofdsecties */
+  main > * {
+    margin-bottom: 1.5rem;
+  }
+
+  /* Maak de inklapbare secties en kaarten compacter */
+  .collapsible-header,
+  .card {
+    padding: 1rem;
+  }
+
+  /* Pas ook de content-padding aan */
+  .collapsible-content {
+    padding: 0 1rem 1rem 1rem;
+  }
+
+  /* Maak de titels van secties en kaarten iets kleiner */
+  .collapsible-header,
+  .card h2 {
+      font-size: 1.1rem;
+  }
+
+  /* Verminder de padding in tabelcellen voor meer data per regel */
+  td {
+    padding: 0.6rem 0.9rem;
+  }
+
+  /* Maak de ruimte tussen de 'card'-rijen in de mobiele tabel iets kleiner */
+  tr {
+    margin-bottom: 0.8rem;
+  }
 }

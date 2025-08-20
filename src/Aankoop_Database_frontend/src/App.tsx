@@ -252,20 +252,24 @@ function App() {
             </tr>
           </thead>
           <tbody>
-            {sortedProducts.map(p => {
-              const pricesForProduct = bestPrices.get(p.id);
-              const bestPriceInCountry = pricesForProduct?.[countryCode];
-              return (
-                <tr key={Number(p.id)}>
-                  <td data-label="Product">{p.naam} <span className="merk-text">({p.merk})</span></td>
-                  <td data-label={`Beste Keuze in ${countryCode}`}>
-                    {bestPriceInCountry ?
-                      `${bestPriceInCountry.winkelNaam}: €${bestPriceInCountry.eenheidsprijs.toFixed(2)} ${formatEenheid(bestPriceInCountry.eenheid)}`
-                      : '-'}
-                  </td>
-                </tr>
-              );
-            })}
+            {sortedProducts
+              .filter(p => {
+                const pricesForProduct = bestPrices.get(p.id);
+                return pricesForProduct?.[countryCode] !== undefined;
+              })
+              .map(p => {
+                const pricesForProduct = bestPrices.get(p.id);
+                // We kunnen hier veilig aannemen dat bestPriceInCountry bestaat door de filter
+                const bestPriceInCountry = pricesForProduct![countryCode]!;
+                return (
+                  <tr key={Number(p.id)}>
+                    <td data-label="Product">{p.naam} <span className="merk-text">({p.merk})</span></td>
+                    <td data-label={`Beste Keuze in ${countryCode}`}>
+                      {`${bestPriceInCountry.winkelNaam}: €${bestPriceInCountry.eenheidsprijs.toFixed(2)} ${formatEenheid(bestPriceInCountry.eenheid)}`}
+                    </td>
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
       </div>

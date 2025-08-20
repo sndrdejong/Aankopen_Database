@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Aankoop_Database_backend as backend } from 'declarations/Aankoop_Database_backend';
 import { Aankoop, BestePrijsInfo, Eenheid, Land, Product, Winkel, AllBestPricesResult } from 'declarations/Aankoop_Database_backend/Aankoop_Database_backend.did';
-import './App.css'; // Importeer de nieuwe stylesheet
+import './App.css'; // Importeer de stylesheet
 
 // Helper component for collapsible sections
 const CollapsibleSection = ({ title, children, startOpen = false }: { title: string, children: React.ReactNode, startOpen?: boolean }) => {
@@ -38,12 +38,14 @@ function App() {
   const [aankopen, setAankopen] = useState<AankoopExtended[]>([]);
   const [bestPrices, setBestPrices] = useState<Map<bigint, BestPriceByCountry>>(new Map());
 
-  // --- NIEUWE LOADING STATES ---
+  // --- LOADING STATES ---
   const [isLoadingPrices, setIsLoadingPrices] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [updatingItemId, setUpdatingItemId] = useState<bigint | null>(null);
   const [deletingItemId, setDeletingItemId] = useState<bigint | null>(null);
 
+  // --- State voor selectie van beste prijzen ---
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
 
   // State for forms
   const [formWinkel, setFormWinkel] = useState({ naam: '', keten: '', land: { NL: null } as Land });
@@ -288,6 +290,66 @@ function App() {
     alert("Beste prijzen zijn opnieuw berekend!");
   };
 
+  const handleSelectionChange = (productId: bigint, countryCode: 'NL' | 'ES') => {
+    const selectionId = `${productId}-${countryCode}`;
+    const newSelection = new Set(selectedProducts);
+    if (newSelection.has(selectionId)) {
+      newSelection.delete(selectionId);
+    } else {
+      newSelection.add(selectionId);
+    }
+    setSelectedProducts(newSelection);
+  };
+
+  const handleExportSelection = () => {
+    if (selectedProducts.size === 0) {
+      alert("Selecteer eerst producten om te exporteren.");
+      return;
+    }
+
+    const selectionData: { product: Product, priceInfo: BestePrijsInfo, country: string }[] = [];
+    selectedProducts.forEach(selectionId => {
+      const [idStr, country] = selectionId.split('-');
+      const productId = BigInt(idStr);
+      const product = products.find(p => p.id === productId);
+      const priceEntry = bestPrices.get(productId);
+      if (product && priceEntry) {
+        const priceInfo = country === 'NL' ? priceEntry.NL : priceEntry.ES;
+        if (priceInfo) {
+          selectionData.push({ product, priceInfo, country });
+        }
+      }
+    });
+    
+    // Sortering: Eerst op winkelnaam, daarna op productnaam
+    const sortedSelection = selectionData.sort((a, b) => {
+      const winkelCompare = a.priceInfo.winkelNaam.localeCompare(b.priceInfo.winkelNaam);
+      if (winkelCompare !== 0) {
+        return winkelCompare;
+      }
+      return a.product.naam.localeCompare(b.product.naam);
+    });
+
+    let exportText = "🛒 Mijn Boodschappenlijstje\n";
+    let currentWinkel = "";
+
+    sortedSelection.forEach(({ product, priceInfo }) => {
+      if (priceInfo.winkelNaam !== currentWinkel) {
+        currentWinkel = priceInfo.winkelNaam;
+        exportText += `\n--- ${currentWinkel} ---\n`;
+      }
+      const priceString = `€${priceInfo.eenheidsprijs.toFixed(2)} ${formatEenheid(priceInfo.eenheid)}`;
+      exportText += `- ${product.naam} (${product.merk}): ${priceString}\n`;
+    });
+
+    navigator.clipboard.writeText(exportText).then(() => {
+      alert("Boodschappenlijst gekopieerd naar klembord!");
+    }).catch(err => {
+      console.error("Kon niet naar klembord kopiëren: ", err);
+      alert("Er ging iets mis bij het kopiëren.");
+    });
+  };
+
   // --- HELPER & RENDER FUNCTIES ---
   const formatEenheid = (eenheid?: object): string => {
     if (!eenheid) return '';
@@ -305,9 +367,16 @@ function App() {
     }
   };
 
-  const PriceFinderTable = ({ countryCode }: { countryCode: 'NL' | 'ES' }) => {
+  const PriceFinderTable = ({ 
+    countryCode, 
+    selectedProducts, 
+    onSelectionChange 
+  }: { 
+    countryCode: 'NL' | 'ES',
+    selectedProducts: Set<string>,
+    onSelectionChange: (productId: bigint, countryCode: 'NL' | 'ES') => void
+  }) => {
     const sortedProducts = useMemo(() => {
-      // Sorteer producten die een beste prijs hebben in het geselecteerde land
       return products
         .filter(p => bestPrices.has(p.id) && bestPrices.get(p.id)![countryCode] !== undefined)
         .sort((a, b) => a.naam.localeCompare(b.naam));
@@ -318,7 +387,7 @@ function App() {
         <table>
           <thead>
             <tr>
-              {/* --- AANGEPAST: Aparte kolommen voor duidelijkheid --- */}
+              <th>✓</th>
               <th>Product</th>
               <th>Merk</th>
               <th>Winkel</th>
@@ -327,34 +396,29 @@ function App() {
           </thead>
           <tbody>
             {sortedProducts.map(p => {
-              // We weten al dat de prijs bestaat door de filter in useMemo
               const bestPriceInCountry = bestPrices.get(p.id)![countryCode]!;
+              const selectionId = `${p.id}-${countryCode}`;
+              const isSelected = selectedProducts.has(selectionId);
 
               return (
-                <tr key={Number(p.id)}>
-                  {/* --- AANGEPAST: Data opgesplitst in aparte cellen --- */}
-
-                  <td data-label="Product">
-                    {p.naam}
+                <tr key={Number(p.id)} className={isSelected ? 'selected-row' : ''}>
+                   <td data-label="Selecteer">
+                    <input 
+                      type="checkbox" 
+                      checked={isSelected}
+                      onChange={() => onSelectionChange(p.id, countryCode)}
+                      className="selection-checkbox"
+                    />
                   </td>
-
-                  <td data-label="Merk">
-                    {p.merk}
-                  </td>
-
-                  <td data-label="Winkel">
-                    {bestPriceInCountry.winkelNaam}
-                  </td>
-
-                  <td data-label="Prijs">
-                    {`€${bestPriceInCountry.eenheidsprijs.toFixed(2)} ${formatEenheid(bestPriceInCountry.eenheid)}`}
-                  </td>
+                  <td data-label="Product">{p.naam}</td>
+                  <td data-label="Merk">{p.merk}</td>
+                  <td data-label="Winkel">{bestPriceInCountry.winkelNaam}</td>
+                  <td data-label="Prijs">{`€${bestPriceInCountry.eenheidsprijs.toFixed(2)} ${formatEenheid(bestPriceInCountry.eenheid)}`}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {/* Toon een bericht als er geen producten zijn voor dit land */}
         {sortedProducts.length === 0 && (
           <p style={{ textAlign: 'center', padding: '1rem' }}>
             Nog geen prijzen gevonden voor {countryCode === 'NL' ? 'Nederland' : 'Spanje'}.
@@ -540,14 +604,30 @@ function App() {
 
         <section className="card">
           <h2>Beste Prijs Vinder</h2>
-          <button onClick={handleFindAllBestPrices} disabled={isLoadingPrices} className="button-primary full-width">
-            {isLoadingPrices ? 'Bezig met berekenen...' : 'Ververs Beste Prijzen'}
-          </button>
+          <div className="button-group">
+            <button onClick={handleFindAllBestPrices} disabled={isLoadingPrices} className="button-primary">
+              {isLoadingPrices ? 'Berekenen...' : 'Ververs Prijzen'}
+            </button>
+            {selectedProducts.size > 0 && (
+              <button onClick={handleExportSelection} className="button-success">
+                Exporteer Lijst ({selectedProducts.size})
+              </button>
+            )}
+          </div>
+
           <CollapsibleSection title="Nederland" startOpen={true}>
-            <PriceFinderTable countryCode="NL" />
+            <PriceFinderTable 
+              countryCode="NL" 
+              selectedProducts={selectedProducts}
+              onSelectionChange={handleSelectionChange} 
+            />
           </CollapsibleSection>
           <CollapsibleSection title="Spanje">
-            <PriceFinderTable countryCode="ES" />
+            <PriceFinderTable 
+              countryCode="ES"
+              selectedProducts={selectedProducts}
+              onSelectionChange={handleSelectionChange} 
+            />
           </CollapsibleSection>
         </section>
 

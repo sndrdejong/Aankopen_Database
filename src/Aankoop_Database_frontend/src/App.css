@@ -1,0 +1,270 @@
+/* --- Globale Stijlen & Kleuren --- */
+:root {
+  --background-color: #F8F7F4; /* Gebroken wit, zoals ongebleekt meel */
+  --card-background: #FFFFFF;
+  --primary-color: #6B8E23; /* Olijfgroen */
+  --primary-hover: #557A1A;
+  --secondary-color: #A9A9A9; /* Donkergrijs */
+  --secondary-hover: #808080;
+  --danger-color: #D2691E; /* Sienna, zoals pompoen of terracotta */
+  --danger-hover: #AC5619;
+  --success-color: #3CB371; /* Medium zeegroen */
+  --success-hover: #2E8B57;
+  --text-color: #333333;
+  --border-color: #EAEAEA;
+  --header-background: #8FBC8F; /* Donker zeegroen, voor contrast */
+
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --border-radius: 8px;
+  --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+/* --- App Layout --- */
+.app-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.app-header {
+  background-color: var(--header-background);
+  color: white;
+  padding: 1.5rem;
+  border-radius: var(--border-radius);
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+main > * {
+  margin-bottom: 2rem;
+}
+
+.card {
+  background-color: var(--card-background);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+  padding: 1.5rem;
+  box-shadow: var(--box-shadow);
+}
+
+/* --- Knoppen (Buttons) --- */
+button {
+  font-family: var(--font-family);
+  border: none;
+  padding: 0.75rem 1rem;
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.button-primary {
+  background-color: var(--primary-color);
+  color: white;
+}
+.button-primary:hover {
+  background-color: var(--primary-hover);
+}
+
+.button-secondary {
+  background-color: var(--secondary-color);
+  color: white;
+}
+.button-secondary:hover {
+  background-color: var(--secondary-hover);
+}
+
+.button-danger {
+  background-color: var(--danger-color);
+  color: white;
+}
+.button-danger:hover {
+  background-color: var(--danger-hover);
+}
+
+.button-success {
+  background-color: var(--success-color);
+  color: white;
+}
+.button-success:hover {
+  background-color: var(--success-hover);
+}
+
+.full-width {
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+
+/* --- Formulieren --- */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  font-size: 1.2rem;
+  box-sizing: border-box; /* Belangrijk voor padding en width */
+}
+
+.hoeveelheid-input {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.hoeveelheid-input input {
+    flex-grow: 1;
+}
+.hoeveelheid-input span {
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+
+/* --- Tabellen --- */
+.table-container {
+  overflow-x: auto; /* Zorgt voor horizontaal scrollen op mobiel */
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+th, td {
+  padding: 0.8rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+thead th {
+  font-weight: 600;
+  background-color: #f9f9f9;
+}
+
+tbody tr:hover {
+  background-color: #f5f5f5;
+}
+
+.merk-text {
+  color: #777;
+  font-size: 0.9em;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* --- Collapsible Sections --- */
+.collapsible-section {
+  background-color: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  margin-bottom: 1rem;
+  box-shadow: var(--box-shadow);
+  overflow: hidden; /* Zorgt dat de inhoud binnen de ronde hoeken blijft */
+}
+
+.collapsible-header {
+  width: 100%;
+  text-align: left;
+  background-color: transparent;
+  border: none;
+  font-size: 1.3rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.collapsible-icon {
+  color: var(--primary-color);
+}
+
+.collapsible-content {
+  padding: 0 1.5rem 1.5rem 1.5rem;
+}
+
+
+/* --- Mobiele Aanpassingen (Responsive Design) --- */
+
+/* Formulier layout op grotere schermen */
+@media (min-width: 768px) {
+  .form-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    align-items: center;
+  }
+
+  .form-grid button {
+    grid-column: -1; /* Plaatst de knop aan het einde */
+  }
+}
+
+
+/* Tabel layout voor mobiel */
+@media (max-width: 767px) {
+  thead {
+    display: none; /* Verberg de tabelkop */
+  }
+  
+  tr {
+    display: block;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+    box-shadow: var(--box-shadow);
+  }
+  
+  td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem 1rem;
+    border-bottom: 1px dotted var(--border-color);
+  }
+  
+  td:last-child {
+    border-bottom: none;
+  }
+
+  td::before {
+    content: attr(data-label); /* Gebruik data-label voor de 'koptekst' */
+    font-weight: 600;
+    margin-right: 1rem;
+  }
+}

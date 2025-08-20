@@ -1,17 +1,19 @@
 import * as React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Aankoop_Database_backend as backend } from 'declarations/Aankoop_Database_backend';
-import { Aankoop, BestePrijsInfo, Eenheid, Land, Product, Winkel } from 'declarations/Aankoop_Database_backend/Aankoop_Database_backend.did';
+import { Aankoop, BestePrijsInfo, Eenheid, Land, Product, Winkel, AllBestPricesResult } from 'declarations/Aankoop_Database_backend/Aankoop_Database_backend.did';
+import './App.css'; // Importeer de nieuwe stylesheet
 
 // Helper component for collapsible sections
 const CollapsibleSection = ({ title, children, startOpen = false }: { title: string, children: React.ReactNode, startOpen?: boolean }) => {
   const [isOpen, setIsOpen] = useState(startOpen);
   return (
-    <section style={{ marginBottom: '20px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
-      <button onClick={() => setIsOpen(!isOpen)} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', fontSize: '1.5em', cursor: 'pointer', padding: '0 0 10px 0', borderBottom: isOpen ? '1px solid #eee' : 'none', marginBottom: isOpen ? '20px' : '0' }}>
-        {isOpen ? '➖' : '➕'} {title}
+    <section className="collapsible-section">
+      <button onClick={() => setIsOpen(!isOpen)} className="collapsible-header">
+        <span className="collapsible-icon">{isOpen ? '➖' : '➕'}</span>
+        {title}
       </button>
-      {isOpen && children}
+      {isOpen && <div className="collapsible-content">{children}</div>}
     </section>
   );
 };
@@ -19,43 +21,75 @@ const CollapsibleSection = ({ title, children, startOpen = false }: { title: str
 // Type definition for the extended purchase object, which includes product and store names
 type AankoopExtended = [Aankoop, string, string];
 
+// New type to store best prices per country for a single product ID
+type BestPriceByCountry = {
+  NL?: BestePrijsInfo;
+  ES?: BestePrijsInfo;
+};
+
 // Define possible Eenheid options for the dropdown menu
 const eenheidOptions = [
-    'STUK', 'METER', 'KILOGRAM', 'GRAM', 'LITER', 'MILLILITER', 'ROL', 'TABLET'
+  'STUK', 'METER', 'KILOGRAM', 'GRAM', 'LITER', 'MILLILITER', 'ROL', 'TABLET'
 ] as const;
 
 function App() {
   const [winkels, setWinkels] = useState<Winkel[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [aankopen, setAankopen] = useState<AankoopExtended[]>([]);
-  const [bestPrices, setBestPrices] = useState<Map<bigint, BestePrijsInfo>>(new Map());
+  const [bestPrices, setBestPrices] = useState<Map<bigint, BestPriceByCountry>>(new Map());
+  const [isLoadingPrices, setIsLoadingPrices] = useState(false);
 
   // State for forms
   const [formWinkel, setFormWinkel] = useState({ naam: '', keten: '', land: { NL: null } as Land });
   const [formProduct, setFormProduct] = useState({ naam: '', merk: '', standaardEenheid: { STUK: null } as Eenheid });
   const [formAankoop, setFormAankoop] = useState({ productId: '', winkelId: '', bonOmschrijving: '', prijs: '', hoeveelheid: '' });
-  
+
   // State for searchable dropdown inputs
   const [productSearch, setProductSearch] = useState('');
   const [winkelSearch, setWinkelSearch] = useState('');
 
-
   // State for editing items
   const [editingWinkelId, setEditingWinkelId] = useState<bigint | null>(null);
   const [editingWinkelData, setEditingWinkelData] = useState<Omit<Winkel, 'id'>>({ naam: '', keten: '', land: { NL: null } });
-  
+
   const [editingProductId, setEditingProductId] = useState<bigint | null>(null);
   const [editingProductData, setEditingProductData] = useState<Omit<Product, 'id' | 'trefwoorden'> & { trefwoorden: string }>({ naam: '', merk: '', trefwoorden: '', standaardEenheid: { STUK: null } });
 
+  // --- DATA FETCHING ---
 
-  // Fetch all data from the backend canister
+  const fetchBestPrices = async () => {
+    setIsLoadingPrices(true);
+    try {
+      const results: AllBestPricesResult[] = await backend.findAllBestPrices();
+      const newBestPrices = new Map<bigint, BestPriceByCountry>();
+      for (const item of results) {
+        const entry: BestPriceByCountry = {};
+        if (item.nl.length > 0) {
+          entry.NL = item.nl[0];
+        }
+        if (item.es.length > 0) {
+          entry.ES = item.es[0];
+        }
+        newBestPrices.set(item.productId, entry);
+      }
+      setBestPrices(newBestPrices);
+    } catch (error) {
+      console.error("Fout bij het ophalen van beste prijzen:", error);
+      alert("Er is iets misgegaan bij het berekenen van de prijzen.");
+    } finally {
+      setIsLoadingPrices(false);
+    }
+  };
+
   const fetchAllData = useCallback(async () => {
     try {
-        setWinkels(await backend.getWinkels());
-        setProducts(await backend.getProducts());
-        setAankopen(await backend.getAankopen());
+      setWinkels(await backend.getWinkels());
+      setProducts(await backend.getProducts());
+      setAankopen(await backend.getAankopen());
+      // Haal nu ook de beste prijzen op bij het starten
+      await fetchBestPrices();
     } catch (error) {
-        console.error("Failed to fetch data:", error);
+      console.error("Failed to fetch data:", error);
     }
   }, []);
 
@@ -83,7 +117,7 @@ function App() {
       }
     }
   };
-  
+
   const handleUpdateWinkel = async (id: bigint) => {
     const { naam, keten, land } = editingWinkelData;
     if (!naam || !keten) {
@@ -109,16 +143,14 @@ function App() {
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const { naam, merk, standaardEenheid } = formProduct;
-    // Set brand to "n.v.t." if it's empty
     const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk;
-    // Keywords are hidden and will be saved as "n.v.t." for new products.
-    const trefwoordenArray: string[] = ['n.v.t.']; 
+    const trefwoordenArray: string[] = ['n.v.t.'];
     await backend.addProduct(naam, finalMerk, trefwoordenArray, standaardEenheid);
     alert("Product succesvol toegevoegd!");
     setFormProduct({ naam: '', merk: '', standaardEenheid: { STUK: null } as Eenheid });
     fetchAllData();
   };
-  
+
   const handleDeleteProduct = async (id: bigint) => {
     if (window.confirm("Weet je zeker dat je dit product wilt verwijderen? Dit kan alleen als er geen aankopen aan gekoppeld zijn.")) {
       const result = await backend.deleteProduct(id);
@@ -133,12 +165,11 @@ function App() {
 
   const handleUpdateProduct = async (id: bigint) => {
     const { naam, merk, trefwoorden, standaardEenheid } = editingProductData;
-     if (!naam) { // Merk is optional now
+    if (!naam) {
       alert("Naam mag niet leeg zijn.");
       return;
     }
     const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk;
-    // Keywords are preserved but not edited.
     const trefwoordenArray = trefwoorden.split(',').map(t => t.trim()).filter(t => t);
     const result = await backend.updateProduct(id, naam, finalMerk, trefwoordenArray, standaardEenheid);
 
@@ -150,15 +181,14 @@ function App() {
       alert(`Fout bij bijwerken: ${result.err}`);
     }
   };
-  
+
   const startEditingProduct = (product: Product) => {
     setEditingProductId(product.id);
-    setEditingProductData({ 
-        naam: product.naam, 
-        merk: product.merk, 
-        // Keywords are loaded into state to be preserved on update, but are not shown in the UI.
-        trefwoorden: product.trefwoorden.join(', '), 
-        standaardEenheid: product.standaardEenheid 
+    setEditingProductData({
+      naam: product.naam,
+      merk: product.merk,
+      trefwoorden: product.trefwoorden.join(', '),
+      standaardEenheid: product.standaardEenheid
     });
   };
 
@@ -170,31 +200,28 @@ function App() {
       BigInt(productId), BigInt(winkelId), bonOmschrijving, parseFloat(prijs), parseFloat(hoeveelheid)
     );
     alert("Aankoop succesvol toegevoegd!");
-    // Reset form and search fields
     setFormAankoop({ productId: '', winkelId: '', bonOmschrijving: '', prijs: '', hoeveelheid: '' });
     setProductSearch('');
     setWinkelSearch('');
-    fetchAllData();
+    // Roep fetchAllData aan om ook de beste prijzen te verversen na een nieuwe aankoop
+    await fetchAllData();
   };
 
   const handleDeleteAankoop = async (id: bigint) => {
     if (window.confirm("Weet je zeker dat je deze aankoop wilt verwijderen?")) {
-        await backend.deleteAankoop(id);
-        fetchAllData();
+      await backend.deleteAankoop(id);
+      // Roep fetchAllData aan om ook de beste prijzen te verversen
+      await fetchAllData();
     }
   };
 
-  // --- OTHER ---
-  const handleFindBestPrice = async (productId: bigint) => {
-    const result = await backend.findBestPrice(productId);
-    const bestPriceInfo = result[0];
-    if (bestPriceInfo) {
-        setBestPrices(prev => new Map(prev).set(productId, bestPriceInfo));
-    } else {
-        alert("Geen prijsinformatie gevonden voor dit product.");
-    }
+  // --- BEST PRICE FINDER LOGIC (VERNIEUWD) ---
+  const handleFindAllBestPrices = async () => {
+    await fetchBestPrices();
+    alert("Beste prijzen zijn opnieuw berekend!");
   };
 
+  // --- HELPER & RENDER FUNCTIES ---
   const formatEenheid = (eenheid?: object): string => {
     if (!eenheid) return '';
     const key = Object.keys(eenheid)[0];
@@ -211,273 +238,259 @@ function App() {
     }
   };
 
+  const PriceFinderTable = ({ countryCode }: { countryCode: 'NL' | 'ES' }) => {
+    const sortedProducts = useMemo(() => {
+      return products.slice().sort((a, b) => a.naam.localeCompare(b.naam));
+    }, [products]);
+    return (
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Beste Keuze in {countryCode}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedProducts.map(p => {
+              const pricesForProduct = bestPrices.get(p.id);
+              const bestPriceInCountry = pricesForProduct?.[countryCode];
+              return (
+                <tr key={Number(p.id)}>
+                  <td data-label="Product">{p.naam} <span className="merk-text">({p.merk})</span></td>
+                  <td data-label={`Beste Keuze in ${countryCode}`}>
+                    {bestPriceInCountry ?
+                      `${bestPriceInCountry.winkelNaam}: €${bestPriceInCountry.eenheidsprijs.toFixed(2)} ${formatEenheid(bestPriceInCountry.eenheid)}`
+                      : '-'}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   const selectedProductForAankoop = formAankoop.productId ? products.find(p => p.id === BigInt(formAankoop.productId)) : null;
-  
+
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: '20px', maxWidth: '1200px', margin: 'auto' }}>
-      <h1>🛒 Boodschappen Tracker</h1>
-
-      {/* --- Management Sections --- */}
-      <CollapsibleSection title="Beheer: Winkel Toevoegen">
-        <form onSubmit={handleAddWinkel} style={formStyle}>
-            <input type="text" placeholder="Naam winkel" value={formWinkel.naam} onChange={e => setFormWinkel({...formWinkel, naam: e.target.value})} required />
-            <input type="text" placeholder="Keten (bv. Albert Heijn)" value={formWinkel.keten} onChange={e => setFormWinkel({...formWinkel, keten: e.target.value})} required />
-            <select value={Object.keys(formWinkel.land)[0]} onChange={e => setFormWinkel({...formWinkel, land: { [e.target.value]: null } as Land})} required>
-                <option value="NL">Nederland</option>
-                <option value="ES">Spanje</option>
+    <div className="app-container">
+      <header className="app-header">
+        <h1>🛒 Boodschappen Tracker</h1>
+      </header>
+      <main>
+        <CollapsibleSection title="Beheer: Winkels">
+          <form onSubmit={handleAddWinkel} className="form-grid">
+            <input type="text" placeholder="Naam winkel" value={formWinkel.naam} onChange={e => setFormWinkel({ ...formWinkel, naam: e.target.value })} required />
+            <input type="text" placeholder="Plaatsnaam" value={formWinkel.keten} onChange={e => setFormWinkel({ ...formWinkel, keten: e.target.value })} required />
+            <select value={Object.keys(formWinkel.land)[0]} onChange={e => setFormWinkel({ ...formWinkel, land: { [e.target.value]: null } as Land })} required>
+              <option value="NL">Nederland</option>
+              <option value="ES">Spanje</option>
             </select>
-            <button type="submit">Voeg Winkel Toe</button>
-        </form>
-        
-        <CollapsibleSection title="Bekijk Bestaande Winkels">
-            <table style={tableStyle}>
+            <button type="submit" className="button-primary">Voeg Winkel Toe</button>
+          </form>
+
+          <CollapsibleSection title="Bekijk Bestaande Winkels">
+            <div className="table-container">
+              <table>
                 <thead>
-                    <tr>
-                        <th style={thStyle}>Land</th>
-                        <th style={thStyle}>Naam</th>
-                        <th style={thStyle}>Keten</th>
-                        <th style={thStyle}>Acties</th>
-                    </tr>
+                  <tr>
+                    <th>Land</th><th>Naam</th><th>Keten</th><th>Acties</th>
+                  </tr>
                 </thead>
                 <tbody>
-                    {winkels.slice().sort((a, b) => a.naam.localeCompare(b.naam)).map(w => (
-                        <tr key={Number(w.id)}>
-                            {editingWinkelId === w.id ? (
-                                <>
-                                    <td style={tdStyle}>
-                                        <select 
-                                            value={Object.keys(editingWinkelData.land)[0]} 
-                                            onChange={e => setEditingWinkelData({...editingWinkelData, land: { [e.target.value]: null } as Land })}>
-                                            <option value="NL">NL</option>
-                                            <option value="ES">ES</option>
-                                        </select>
-                                    </td>
-                                    <td style={tdStyle}><input type="text" value={editingWinkelData.naam} onChange={e => setEditingWinkelData({...editingWinkelData, naam: e.target.value})} /></td>
-                                    <td style={tdStyle}><input type="text" value={editingWinkelData.keten} onChange={e => setEditingWinkelData({...editingWinkelData, keten: e.target.value})} /></td>
-                                    <td style={tdStyle}>
-                                        <button onClick={() => handleUpdateWinkel(w.id)} style={{color: 'green'}}>Opslaan</button>
-                                        <button onClick={() => setEditingWinkelId(null)}>Annuleren</button>
-                                    </td>
-                                </>
-                            ) : (
-                                <>
-                                    <td style={tdStyle}>{Object.keys(w.land)[0]}</td>
-                                    <td style={tdStyle}>{w.naam}</td>
-                                    <td style={tdStyle}>{w.keten}</td>
-                                    <td style={tdStyle}>
-                                        <button onClick={() => startEditingWinkel(w)}>Wijzig</button>
-                                        <button onClick={() => handleDeleteWinkel(w.id)} style={{color: 'red'}}>Verwijder</button>
-                                    </td>
-                                </>
-                            )}
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </CollapsibleSection>
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Beheer: Product Toevoegen">
-        <form onSubmit={handleAddProduct} style={formStyle}>
-            <input type="text" placeholder="Naam product" value={formProduct.naam} onChange={e => setFormProduct({...formProduct, naam: e.target.value})} required />
-            <input type="text" placeholder="Merk (optioneel)" value={formProduct.merk} onChange={e => setFormProduct({...formProduct, merk: e.target.value})} />
-            <select 
-              value={Object.keys(formProduct.standaardEenheid)[0]} 
-              onChange={e => {
-                const newEenheid = e.target.value as typeof eenheidOptions[number];
-                setFormProduct({...formProduct, standaardEenheid: { [newEenheid]: null } as Eenheid});
-              }} 
-              required
-            >
-                {[...eenheidOptions].sort().map(key => <option key={key} value={key}>{key.charAt(0) + key.slice(1).toLowerCase()}</option>)}
-            </select>
-            <button type="submit">Voeg Product Toe</button>
-        </form>
-
-        <CollapsibleSection title="Bekijk Bestaande Producten">
-            <table style={tableStyle}>
-                <thead>
-                    <tr>
-                        <th style={thStyle}>Naam</th>
-                        <th style={thStyle}>Merk</th>
-                        <th style={thStyle}>Standaard Eenheid</th>
-                        <th style={thStyle}>Acties</th>
+                  {winkels.slice().sort((a, b) => a.naam.localeCompare(b.naam)).map(w => (
+                    <tr key={Number(w.id)}>
+                      {editingWinkelId === w.id ? (
+                        <>
+                          <td data-label="Land">
+                            <select value={Object.keys(editingWinkelData.land)[0]} onChange={e => setEditingWinkelData({ ...editingWinkelData, land: { [e.target.value]: null } as Land })}>
+                              <option value="NL">NL</option><option value="ES">ES</option>
+                            </select>
+                          </td>
+                          <td data-label="Naam"><input type="text" value={editingWinkelData.naam} onChange={e => setEditingWinkelData({ ...editingWinkelData, naam: e.target.value })} /></td>
+                          <td data-label="Keten"><input type="text" value={editingWinkelData.keten} onChange={e => setEditingWinkelData({ ...editingWinkelData, keten: e.target.value })} /></td>
+                          <td data-label="Acties" className="action-buttons">
+                            <button onClick={() => handleUpdateWinkel(w.id)} className="button-success">Opslaan</button>
+                            <button onClick={() => setEditingWinkelId(null)} className="button-secondary">Annuleren</button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td data-label="Land">{Object.keys(w.land)[0]}</td>
+                          <td data-label="Naam">{w.naam}</td>
+                          <td data-label="Keten">{w.keten}</td>
+                          <td data-label="Acties" className="action-buttons">
+                            <button onClick={() => startEditingWinkel(w)} className="button-secondary">Wijzig</button>
+                            <button onClick={() => handleDeleteWinkel(w.id)} className="button-danger">Verwijder</button>
+                          </td>
+                        </>
+                      )}
                     </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CollapsibleSection>
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Beheer: Producten">
+          <form onSubmit={handleAddProduct} className="form-grid">
+            <input type="text" placeholder="Naam product" value={formProduct.naam} onChange={e => setFormProduct({ ...formProduct, naam: e.target.value })} required />
+            <input type="text" placeholder="Merk (optioneel)" value={formProduct.merk} onChange={e => setFormProduct({ ...formProduct, merk: e.target.value })} />
+            <select value={Object.keys(formProduct.standaardEenheid)[0]} onChange={e => {
+              const newEenheid = e.target.value as typeof eenheidOptions[number];
+              setFormProduct({ ...formProduct, standaardEenheid: { [newEenheid]: null } as Eenheid });
+            }} required>
+              {[...eenheidOptions].sort().map(key => <option key={key} value={key}>{key.charAt(0) + key.slice(1).toLowerCase()}</option>)}
+            </select>
+            <button type="submit" className="button-primary">Voeg Product Toe</button>
+          </form>
+
+          <CollapsibleSection title="Bekijk Bestaande Producten">
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Naam</th><th>Merk</th><th>Eenheid</th><th>Acties</th>
+                  </tr>
                 </thead>
                 <tbody>
-                    {products.slice().sort((a, b) => a.naam.localeCompare(b.naam)).map(p => (
-                         <tr key={Number(p.id)}>
-                            {editingProductId === p.id ? (
-                                <>
-                                    <td style={tdStyle}><input type="text" value={editingProductData.naam} onChange={e => setEditingProductData({ ...editingProductData, naam: e.target.value })} /></td>
-                                    <td style={tdStyle}><input type="text" placeholder="Merk (optioneel)" value={editingProductData.merk} onChange={e => setEditingProductData({ ...editingProductData, merk: e.target.value })} /></td>
-                                    {/* Eenheid is no longer editable */}
-                                    <td style={tdStyle}>{formatEenheid(editingProductData.standaardEenheid).replace('per ', '')}</td>
-                                    <td style={tdStyle}>
-                                        <button onClick={() => handleUpdateProduct(p.id)} style={{color: 'green'}}>Opslaan</button>
-                                        <button onClick={() => setEditingProductId(null)}>Annuleren</button>
-                                    </td>
-                                </>
-                            ) : (
-                                <>
-                                    <td style={tdStyle}>{p.naam}</td>
-                                    <td style={tdStyle}>{p.merk}</td>
-                                    <td style={tdStyle}>{formatEenheid(p.standaardEenheid).replace('per ', '')}</td>
-                                    <td style={tdStyle}>
-                                        <button onClick={() => startEditingProduct(p)}>Wijzig</button>
-                                        <button onClick={() => handleDeleteProduct(p.id)} style={{color: 'red'}}>Verwijder</button>
-                                    </td>
-                                </>
-                            )}
-                        </tr>
-                    ))}
+                  {products.slice().sort((a, b) => a.naam.localeCompare(b.naam)).map(p => (
+                    <tr key={Number(p.id)}>
+                      {editingProductId === p.id ? (
+                        <>
+                          <td data-label="Naam"><input type="text" value={editingProductData.naam} onChange={e => setEditingProductData({ ...editingProductData, naam: e.target.value })} /></td>
+                          <td data-label="Merk"><input type="text" placeholder="Merk (optioneel)" value={editingProductData.merk} onChange={e => setEditingProductData({ ...editingProductData, merk: e.target.value })} /></td>
+                          <td data-label="Eenheid">{formatEenheid(editingProductData.standaardEenheid).replace('per ', '')}</td>
+                          <td data-label="Acties" className="action-buttons">
+                            <button onClick={() => handleUpdateProduct(p.id)} className="button-success">Opslaan</button>
+                            <button onClick={() => setEditingProductId(null)} className="button-secondary">Annuleren</button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td data-label="Naam">{p.naam}</td>
+                          <td data-label="Merk">{p.merk}</td>
+                          <td data-label="Eenheid">{formatEenheid(p.standaardEenheid).replace('per ', '')}</td>
+                          <td data-label="Acties" className="action-buttons">
+                            <button onClick={() => startEditingProduct(p)} className="button-secondary">Wijzig</button>
+                            <button onClick={() => handleDeleteProduct(p.id)} className="button-danger">Verwijder</button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
                 </tbody>
-            </table>
+              </table>
+            </div>
+          </CollapsibleSection>
         </CollapsibleSection>
-      </CollapsibleSection>
-      
-      {/* --- Add Purchase Section --- */}
-      <CollapsibleSection title="Nieuwe Aankoop Toevoegen">
-        <form onSubmit={handleAddAankoop} style={formStyle}>
-            {/* Searchable Product Dropdown */}
-            <input 
-              list="product-options"
-              value={productSearch}
-              onChange={e => {
-                const value = e.target.value;
-                setProductSearch(value);
-                const selectedProd = products.find(p => `${p.naam} (${p.merk})` === value);
-                setFormAankoop(prev => ({ ...prev, productId: selectedProd ? String(selectedProd.id) : '' }));
-              }}
-              placeholder="-- Selecteer Product --"
-              required
-              style={{ flexGrow: 1 }}
-            />
+
+        <CollapsibleSection title="Nieuwe Aankoop Toevoegen">
+          <form onSubmit={handleAddAankoop} className="form-grid">
+            <input list="product-options" value={productSearch} onChange={e => {
+              const value = e.target.value;
+              setProductSearch(value);
+              const selectedProd = products.find(p => `${p.naam} (${p.merk})` === value);
+              setFormAankoop(prev => ({ ...prev, productId: selectedProd ? String(selectedProd.id) : '' }));
+            }} placeholder="-- Selecteer Product --" required />
             <datalist id="product-options">
-              {products.slice().sort((a, b) => a.naam.localeCompare(b.naam)).map(p => 
+              {products.slice().sort((a, b) => a.naam.localeCompare(b.naam)).map(p =>
                 <option key={Number(p.id)} value={`${p.naam} (${p.merk})`} />
               )}
             </datalist>
-            
-            {/* Searchable Winkel Dropdown */}
-            <input 
-              list="winkel-options"
-              value={winkelSearch}
-              onChange={e => {
-                const value = e.target.value;
-                setWinkelSearch(value);
-                const selectedWinkel = winkels.find(w => `${Object.keys(w.land)[0]} - ${w.naam} (${w.keten})` === value);
-                setFormAankoop(prev => ({...prev, winkelId: selectedWinkel ? String(selectedWinkel.id) : ''}));
-              }}
-              placeholder="-- Selecteer Winkel --"
-              required
-              style={{ flexGrow: 1 }}
-            />
+
+            <input list="winkel-options" value={winkelSearch} onChange={e => {
+              const value = e.target.value;
+              setWinkelSearch(value);
+              const selectedWinkel = winkels.find(w => `${Object.keys(w.land)[0]} - ${w.naam} (${w.keten})` === value);
+              setFormAankoop(prev => ({ ...prev, winkelId: selectedWinkel ? String(selectedWinkel.id) : '' }));
+            }} placeholder="-- Selecteer Winkel --" required />
             <datalist id="winkel-options">
-               {winkels
-                  .slice()
-                  .sort((a, b) => {
-                    const landA = Object.keys(a.land)[0];
-                    const landB = Object.keys(b.land)[0];
-                    if (landA.localeCompare(landB) !== 0) return landA.localeCompare(landB);
-                    return a.naam.localeCompare(b.naam);
-                  })
-                  .map(w => (
-                    <option key={Number(w.id)} value={`${Object.keys(w.land)[0]} - ${w.naam} (${w.keten})`} />
-                  ))}
+              {winkels.slice().sort((a, b) => {
+                const landA = Object.keys(a.land)[0];
+                const landB = Object.keys(b.land)[0];
+                if (landA.localeCompare(landB) !== 0) return landA.localeCompare(landB);
+                return a.naam.localeCompare(b.naam);
+              }).map(w => (
+                <option key={Number(w.id)} value={`${Object.keys(w.land)[0]} - ${w.naam} (${w.keten})`} />
+              ))}
             </datalist>
 
-            <input type="text" placeholder="Bon omschrijving" value={formAankoop.bonOmschrijving} onChange={e => setFormAankoop({...formAankoop, bonOmschrijving: e.target.value})} required />
-            <input type="number" step="0.01" placeholder="Prijs (€)" value={formAankoop.prijs} onChange={e => setFormAankoop({...formAankoop, prijs: e.target.value})} required />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexGrow: 1 }}>
-                <input type="number" step="0.001" placeholder="Hoeveelheid" value={formAankoop.hoeveelheid} onChange={e => setFormAankoop({...formAankoop, hoeveelheid: e.target.value})} required style={{ width: '100px' }} />
-                <span style={{ fontWeight: 'bold' }}>
-                    {selectedProductForAankoop ? formatEenheid(selectedProductForAankoop.standaardEenheid).replace('per ', '') : '...'}
-                </span>
+            <input type="text" placeholder="Bon omschrijving" value={formAankoop.bonOmschrijving} onChange={e => setFormAankoop({ ...formAankoop, bonOmschrijving: e.target.value })} required />
+            <input type="number" step="0.01" placeholder="Prijs (€)" value={formAankoop.prijs} onChange={e => setFormAankoop({ ...formAankoop, prijs: e.target.value })} required />
+
+            <div className="hoeveelheid-input">
+              <input type="number" step="0.001" placeholder="Hoeveelheid" value={formAankoop.hoeveelheid} onChange={e => setFormAankoop({ ...formAankoop, hoeveelheid: e.target.value })} required />
+              <span>
+                {selectedProductForAankoop ? formatEenheid(selectedProductForAankoop.standaardEenheid).replace('per ', '') : '...'}
+              </span>
             </div>
-            <button type="submit">Voeg Aankoop Toe</button>
-        </form>
-      </CollapsibleSection>
+            <button type="submit" className="button-primary">Voeg Aankoop Toe</button>
+          </form>
+        </CollapsibleSection>
 
-      {/* --- Price Finder Section --- */}
-      <section style={sectionStyle}>
-        <h2>Beste Prijs Vinder</h2>
-        <table style={tableStyle}>
-            <thead>
-                <tr><th style={thStyle}>Product</th><th style={thStyle}>Actie</th><th style={thStyle}>Beste Keuze</th></tr>
-            </thead>
-            <tbody>
-                {products
-                    .slice() // Create a copy to sort
-                    .sort((a, b) => {
-                        const bestPriceA = bestPrices.get(a.id);
-                        const bestPriceB = bestPrices.get(b.id);
+        <section className="card">
+          <h2>Beste Prijs Vinder</h2>
+          <button onClick={handleFindAllBestPrices} disabled={isLoadingPrices} className="button-primary full-width">
+            {isLoadingPrices ? 'Bezig met berekenen...' : 'Ververs Beste Prijzen'}
+          </button>
+          <CollapsibleSection title="Nederland" startOpen={true}>
+            <PriceFinderTable countryCode="NL" />
+          </CollapsibleSection>
+          <CollapsibleSection title="Spanje">
+            <PriceFinderTable countryCode="ES" />
+          </CollapsibleSection>
+        </section>
 
-                        // Group products with a found price at the top
-                        if (bestPriceA && !bestPriceB) return -1;
-                        if (!bestPriceA && bestPriceB) return 1;
-
-                        // If both have a price, sort by the store name
-                        if (bestPriceA && bestPriceB) {
-                            const winkelCompare = bestPriceA.winkelNaam.localeCompare(bestPriceB.winkelNaam);
-                            // If store names are different, we've found our order
-                            if (winkelCompare !== 0) return winkelCompare;
-                        }
-                        
-                        // Fallback sort: either both have no price, or they share a best-price store
-                        // In both cases, sort by product name
-                        return a.naam.localeCompare(b.naam);
-                    })
-                    .map(p => (
-                    <tr key={Number(p.id)}>
-                        <td style={tdStyle}>{p.naam} ({p.merk})</td>
-                        <td style={tdStyle}><button onClick={() => handleFindBestPrice(p.id)}>Vind Beste Prijs</button></td>
-                        <td style={tdStyle}>
-                            {bestPrices.has(p.id) ? 
-                                `${bestPrices.get(p.id)!.winkelNaam}: €${bestPrices.get(p.id)!.eenheidsprijs.toFixed(2)} ${formatEenheid(bestPrices.get(p.id)!.eenheid)}` 
-                                : 'Nog niet gezocht'}
-                        </td>
-                    </tr>
-                ))}
-            </tbody>
-        </table>
-      </section>
-
-      {/* --- History Section --- */}
-      <section style={sectionStyle}>
-        <h2>Aankopen Historie</h2>
-        <table style={tableStyle}>
-            <thead>
+        <section className="card">
+          <h2>Aankopen Historie</h2>
+          <div className="table-container">
+            <table>
+              <thead>
                 <tr>
-                    <th style={thStyle}>Product</th><th style={thStyle}>Winkel</th><th style={thStyle}>Prijs</th><th style={thStyle}>Hoeveelheid</th><th style={thStyle}>Datum</th><th style={thStyle}>Actie</th>
+                  <th>Product</th>
+                  <th>Winkel</th>
+                  <th>Land</th>{/* NIEUW */}
+                  <th>Prijs</th>
+                  <th>Hoeveelheid</th>
+                  <th>Eenheid</th>{/* NIEUW */}
+                  <th>Datum</th>
+                  <th>Actie</th>
                 </tr>
-            </thead>
-            <tbody>
-                {aankopen
-                  .slice()
-                  .sort(([a], [b]) => Number(b.datum) - Number(a.datum))
-                  .map(([aankoop, prodNaam, winkelNaam]) => (
+              </thead>
+              <tbody>
+                {aankopen.slice().sort(([a], [b]) => Number(b.datum) - Number(a.datum)).map(([aankoop, prodNaam, winkelNaam]) => {
+                  // --- Logica om de juiste winkel en product te vinden ---
+                  const winkel = winkels.find(w => w.id === aankoop.winkelId);
+                  const product = products.find(p => p.id === aankoop.productId);
+
+                  // --- Haal land en eenheid op uit de gevonden objecten ---
+                  const land = winkel ? Object.keys(winkel.land)[0] : 'n/a';
+                  const eenheid = product ? formatEenheid(product.standaardEenheid).replace('per ', '') : 'n/a';
+
+                  return (
                     <tr key={Number(aankoop.id)}>
-                        <td style={tdStyle}>{prodNaam}</td>
-                        <td style={tdStyle}>{winkelNaam}</td>
-                        <td style={tdStyle}>€{aankoop.prijs.toFixed(2)}</td>
-                        <td style={tdStyle}>{aankoop.hoeveelheid}</td>
-                        <td style={tdStyle}>{new Date(Number(aankoop.datum) / 1_000_000).toLocaleDateString()}</td>
-                        <td style={tdStyle}><button onClick={() => handleDeleteAankoop(aankoop.id)} style={{color: 'red'}}>Verwijder</button></td>
+                      <td data-label="Product">{prodNaam}</td>
+                      <td data-label="Winkel">{winkelNaam}</td>
+                      <td data-label="Land">{land}</td> {/* NIEUW */}
+                      <td data-label="Prijs">€{aankoop.prijs.toFixed(2)}</td>
+                      <td data-label="Hoeveelheid">{aankoop.hoeveelheid}</td>
+                      <td data-label="Eenheid">{eenheid}</td> {/* NIEUW */}
+                      <td data-label="Datum">{new Date(Number(aankoop.datum) / 1_000_000).toLocaleDateString()}</td>
+                      <td data-label="Actie"><button onClick={() => handleDeleteAankoop(aankoop.id)} className="button-danger">Verwijder</button></td>
                     </tr>
-                ))}
-            </tbody>
-        </table>
-      </section>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
-
-// Reusable styles
-const sectionStyle: React.CSSProperties = { marginBottom: '40px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' };
-const formStyle: React.CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '20px' };
-const tableStyle: React.CSSProperties = { width: '100%', borderCollapse: 'collapse' };
-const thStyle: React.CSSProperties = { border: '1px solid #ddd', padding: '8px', textAlign: 'left', backgroundColor: '#f2f2f2' };
-const tdStyle: React.CSSProperties = { border: '1px solid #ddd', padding: '8px' };
 
 export default App;

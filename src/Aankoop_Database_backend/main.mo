@@ -40,7 +40,16 @@ persistent actor BoodschappenDB {
     eenheidsprijs : Float;
     eenheid : Eenheid;
   };
-
+  
+  // ==========================================================
+  // NIEUW TYPE VOOR DE findAllBestPrices FUNCTIE
+  // ==========================================================
+  public type AllBestPricesResult = {
+    productId: Nat;
+    nl: ?BestePrijsInfo;
+    es: ?BestePrijsInfo;
+  };
+  
   var winkelsData : [(Nat, Winkel)] = [];
   var productenData : [(Nat, Product)] = [];
   var aankopenData : [(Nat, Aankoop)] = [];
@@ -128,13 +137,6 @@ persistent actor BoodschappenDB {
     };
   };
   
-  // ==========================================================
-  // NIEUWE FUNCTIES VOOR WIJZIGEN EN VERWIJDEREN
-  // ==========================================================
-  
-  /**
-   * Wijzigt een bestaande winkel.
-   */
   public shared (_) func updateWinkel(id : Nat, naam : Text, keten : Text, land : Land) : async Result.Result<Null, Text> {
     switch (Map.get(winkels, Map.nhash, id)) {
       case (null) {
@@ -148,30 +150,19 @@ persistent actor BoodschappenDB {
     };
   };
 
-  /**
-   * Verwijdert een winkel, maar alleen als er geen aankopen aan gekoppeld zijn.
-   */
   public shared (_) func deleteWinkel(id : Nat) : async Result.Result<Null, Text> {
-    // Controleer eerst of de winkel bestaat
     if (Map.get(winkels, Map.nhash, id) == null) {
       return #err("Winkel met deze ID niet gevonden.");
     };
-
-    // Controleer of er aankopen aan deze winkel gekoppeld zijn
     for ((_, aankoop) in Map.entries(aankopen)) {
       if (aankoop.winkelId == id) {
         return #err("Kan winkel niet verwijderen: er zijn nog aankopen aan gekoppeld.");
       };
     };
-
-    // Als er geen aankopen zijn, verwijder de winkel
     Map.delete(winkels, Map.nhash, id);
     return #ok(null);
   };
   
-  /**
-   * Wijzigt een bestaand product.
-   */
   public shared (_) func updateProduct(id : Nat, naam : Text, merk : Text, trefwoorden : [Text], standaardEenheid : Eenheid) : async Result.Result<Null, Text> {
     switch (Map.get(producten, Map.nhash, id)) {
       case (null) {
@@ -185,31 +176,19 @@ persistent actor BoodschappenDB {
     };
   };
   
-  /**
-   * Verwijdert een product, maar alleen als er geen aankopen aan gekoppeld zijn.
-   */
   public shared (_) func deleteProduct(id : Nat) : async Result.Result<Null, Text> {
-    // Controleer eerst of het product bestaat
     if (Map.get(producten, Map.nhash, id) == null) {
       return #err("Product met deze ID niet gevonden.");
     };
-
-    // Controleer of er aankopen aan dit product gekoppeld zijn
     for ((_, aankoop) in Map.entries(aankopen)) {
       if (aankoop.productId == id) {
         return #err("Kan product niet verwijderen: er zijn nog aankopen aan gekoppeld.");
       };
     };
-
-    // Als er geen aankopen zijn, verwijder het product
     Map.delete(producten, Map.nhash, id);
     return #ok(null);
   };
   
-  // ==========================================================
-  // EINDE NIEUWE FUNCTIES
-  // ==========================================================
-
   private func berekenEenheidsprijs(aankoop : Aankoop) : ?Float {
     if (aankoop.hoeveelheid > 0) {
       return ?(aankoop.prijs / aankoop.hoeveelheid);
@@ -241,20 +220,32 @@ persistent actor BoodschappenDB {
     return Buffer.toArray(result);
   };
 
-  public query func findBestPrice(productId : Nat) : async ?BestePrijsInfo {
+  // ==========================================================
+  // NIEUWE FUNCTIES VOOR BESTE PRIJS BEREKENING
+  // ==========================================================
+  
+  /**
+   * Hulpfunctie die de beste prijs voor een specifiek product in een specifiek land berekent.
+   */
+  private func findBestPriceForCountry(productId : Nat, land: Land) : ?BestePrijsInfo {
     var laatsteAankopenPerWinkel = Map.new<Nat, Aankoop>();
 
     for ((_, aankoop) in Map.entries(aankopen)) {
-      if (aankoop.productId == productId) {
-        let winkelId = aankoop.winkelId;
-        let bestaandeAankoopOpt = Map.get(laatsteAankopenPerWinkel, Map.nhash, winkelId);
-        let isNieuwer = switch (bestaandeAankoopOpt) {
-          case (null) true;
-          case (?bestaande) aankoop.datum > bestaande.datum;
+      switch(Map.get(winkels, Map.nhash, aankoop.winkelId)) {
+        case (?winkel) {
+          if (aankoop.productId == productId and winkel.land == land) {
+            let winkelId = aankoop.winkelId;
+            let bestaandeAankoopOpt = Map.get(laatsteAankopenPerWinkel, Map.nhash, winkelId);
+            let isNieuwer = switch (bestaandeAankoopOpt) {
+              case (null) true;
+              case (?bestaande) aankoop.datum > bestaande.datum;
+            };
+            if (isNieuwer) {
+              Map.set(laatsteAankopenPerWinkel, Map.nhash, winkelId, aankoop);
+            };
+          };
         };
-        if (isNieuwer) {
-          Map.set(laatsteAankopenPerWinkel, Map.nhash, winkelId, aankoop);
-        };
+        case (_) {};
       };
     };
 
@@ -289,5 +280,29 @@ persistent actor BoodschappenDB {
       };
     };
     return besteInfo;
+  };
+  
+  /**
+   * Berekent de beste prijzen voor alle producten in zowel NL als ES.
+   * Dit is de functie die de frontend aanroept.
+   */
+  public query func findAllBestPrices() : async [AllBestPricesResult] {
+    let results = Buffer.Buffer<AllBestPricesResult>(0);
+
+    for ((productId, product) in Map.entries(producten)) {
+      let nlBestInfo = findBestPriceForCountry(productId, #NL);
+      let esBestInfo = findBestPriceForCountry(productId, #ES);
+
+      // Voeg alleen toe aan resultaten als er minstens één prijs gevonden is
+      if (nlBestInfo != null or esBestInfo != null) {
+        results.add({
+          productId = productId;
+          nl = nlBestInfo;
+          es = esBestInfo;
+        });
+      };
+    };
+    
+    return Buffer.toArray(results);
   };
 };

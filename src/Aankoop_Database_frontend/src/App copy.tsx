@@ -307,23 +307,24 @@ function App() {
       return;
     }
 
-    const selectionData: { product: Product, priceInfo: BestePrijsInfo, country: string }[] = [];
+    const selectionData: { product: Product, priceInfo?: BestePrijsInfo, country: string }[] = [];
     selectedProducts.forEach(selectionId => {
       const [idStr, country] = selectionId.split('-');
       const productId = BigInt(idStr);
       const product = products.find(p => p.id === productId);
-      const priceEntry = bestPrices.get(productId);
-      if (product && priceEntry) {
-        const priceInfo = country === 'NL' ? priceEntry.NL : priceEntry.ES;
-        if (priceInfo) {
-          selectionData.push({ product, priceInfo, country });
-        }
+
+      if (product) {
+        const priceEntry = bestPrices.get(productId);
+        const priceInfo = country === 'NL' ? priceEntry?.NL : priceEntry?.ES;
+        selectionData.push({ product, priceInfo, country });
       }
     });
-    
-    // Sortering: Eerst op winkelnaam, daarna op productnaam
+
     const sortedSelection = selectionData.sort((a, b) => {
-      const winkelCompare = a.priceInfo.winkelNaam.localeCompare(b.priceInfo.winkelNaam);
+      // Use a placeholder for items without a store to sort them last
+      const winkelA = a.priceInfo?.winkelNaam ?? 'ZZZ_NO_WINKEL';
+      const winkelB = b.priceInfo?.winkelNaam ?? 'ZZZ_NO_WINKEL';
+      const winkelCompare = winkelA.localeCompare(winkelB);
       if (winkelCompare !== 0) {
         return winkelCompare;
       }
@@ -332,14 +333,26 @@ function App() {
 
     let exportText = "🛒 Mijn Boodschappenlijstje\n";
     let currentWinkel = "";
+    const noWinkelGroupName = "--- Overige producten ---";
 
     sortedSelection.forEach(({ product, priceInfo }) => {
-      if (priceInfo.winkelNaam !== currentWinkel) {
-        currentWinkel = priceInfo.winkelNaam;
-        exportText += `\n--- ${currentWinkel} ---\n`;
+      const winkelNaam = priceInfo?.winkelNaam;
+
+      if (winkelNaam) {
+        if (winkelNaam !== currentWinkel) {
+          currentWinkel = winkelNaam;
+          exportText += `\n--- ${currentWinkel} ---\n`;
+        }
+        const priceString = `€${priceInfo.eenheidsprijs.toFixed(2)} ${formatEenheid(priceInfo.eenheid)}`;
+        exportText += `- ${product.naam} (${product.merk}): ${priceString}\n`;
+      } else {
+        // Handle products without a price
+        if (currentWinkel !== noWinkelGroupName) {
+          currentWinkel = noWinkelGroupName;
+          exportText += `\n${noWinkelGroupName}\n`;
+        }
+        exportText += `- ${product.naam} (${product.merk})\n`;
       }
-      const priceString = `€${priceInfo.eenheidsprijs.toFixed(2)} ${formatEenheid(priceInfo.eenheid)}`;
-      exportText += `- ${product.naam} (${product.merk}): ${priceString}\n`;
     });
 
     navigator.clipboard.writeText(exportText).then(() => {
@@ -349,6 +362,7 @@ function App() {
       alert("Er ging iets mis bij het kopiëren.");
     });
   };
+
 
   // --- HELPER & RENDER FUNCTIES ---
   const formatEenheid = (eenheid?: object): string => {
@@ -367,20 +381,34 @@ function App() {
     }
   };
 
-  const PriceFinderTable = ({ 
-    countryCode, 
-    selectedProducts, 
-    onSelectionChange 
-  }: { 
+  const PriceFinderTable = ({
+    countryCode,
+    selectedProducts,
+    onSelectionChange
+  }: {
     countryCode: 'NL' | 'ES',
     selectedProducts: Set<string>,
     onSelectionChange: (productId: bigint, countryCode: 'NL' | 'ES') => void
   }) => {
     const sortedProducts = useMemo(() => {
-      return products
-        .filter(p => bestPrices.has(p.id) && bestPrices.get(p.id)![countryCode] !== undefined)
-        .sort((a, b) => a.naam.localeCompare(b.naam));
+      return [...products] // Create a shallow copy to avoid mutating the original array
+        .sort((a, b) => {
+          const aHasPrice = bestPrices.has(a.id) && bestPrices.get(a.id)?.[countryCode] !== undefined;
+          const bHasPrice = bestPrices.has(b.id) && bestPrices.get(b.id)?.[countryCode] !== undefined;
+
+          // If one has a price and the other doesn't, the one with the price comes first
+          if (aHasPrice && !bHasPrice) return -1;
+          if (!aHasPrice && bHasPrice) return 1;
+
+          // Otherwise (both have a price or both don't), sort alphabetically by product name
+          return a.naam.localeCompare(b.naam);
+        });
     }, [products, bestPrices, countryCode]);
+
+    const hasAnyPriceForCountry = useMemo(() =>
+      products.some(p => bestPrices.has(p.id) && bestPrices.get(p.id)?.[countryCode]),
+      [products, bestPrices, countryCode]
+    );
 
     return (
       <div className="table-container">
@@ -396,30 +424,49 @@ function App() {
           </thead>
           <tbody>
             {sortedProducts.map(p => {
-              const bestPriceInCountry = bestPrices.get(p.id)![countryCode]!;
+              const bestPriceInCountry = bestPrices.get(p.id)?.[countryCode];
               const selectionId = `${p.id}-${countryCode}`;
               const isSelected = selectedProducts.has(selectionId);
 
-              return (
-                <tr key={Number(p.id)} className={isSelected ? 'selected-row' : ''}>
-                   <td data-label="Selecteer">
-                    <input 
-                      type="checkbox" 
-                      checked={isSelected}
-                      onChange={() => onSelectionChange(p.id, countryCode)}
-                      className="selection-checkbox"
-                    />
-                  </td>
-                  <td data-label="Product">{p.naam}</td>
-                  <td data-label="Merk">{p.merk}</td>
-                  <td data-label="Winkel">{bestPriceInCountry.winkelNaam}</td>
-                  <td data-label="Prijs">{`€${bestPriceInCountry.eenheidsprijs.toFixed(2)} ${formatEenheid(bestPriceInCountry.eenheid)}`}</td>
-                </tr>
-              );
+              if (bestPriceInCountry) {
+                return (
+                  <tr key={Number(p.id)} className={isSelected ? 'selected-row' : ''}>
+                    <td data-label="Selecteer">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onSelectionChange(p.id, countryCode)}
+                        className="selection-checkbox"
+                      />
+                    </td>
+                    <td data-label="Product">{p.naam}</td>
+                    <td data-label="Merk">{p.merk}</td>
+                    <td data-label="Winkel">{bestPriceInCountry.winkelNaam}</td>
+                    <td data-label="Prijs">{`€${bestPriceInCountry.eenheidsprijs.toFixed(2)} ${formatEenheid(bestPriceInCountry.eenheid)}`}</td>
+                  </tr>
+                );
+              } else {
+                return (
+                  <tr key={Number(p.id)} className={`disabled-row ${isSelected ? 'selected-row' : ''}`}>
+                    <td data-label="Selecteer">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onSelectionChange(p.id, countryCode)}
+                        className="selection-checkbox"
+                      />
+                    </td>
+                    <td data-label="Product">{p.naam}</td>
+                    <td data-label="Merk">{p.merk}</td>
+                    <td data-label="Winkel">N/A</td>
+                    <td data-label="Prijs">Geen prijs bekend</td>
+                  </tr>
+                );
+              }
             })}
           </tbody>
         </table>
-        {sortedProducts.length === 0 && (
+        {!hasAnyPriceForCountry && (
           <p style={{ textAlign: 'center', padding: '1rem' }}>
             Nog geen prijzen gevonden voor {countryCode === 'NL' ? 'Nederland' : 'Spanje'}.
           </p>

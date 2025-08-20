@@ -56,6 +56,9 @@ function App() {
   const [productSearch, setProductSearch] = useState('');
   const [winkelSearch, setWinkelSearch] = useState('');
 
+  // NIEUW: State om bij te houden welke velden een suggestie bevatten
+  const [suggestedFields, setSuggestedFields] = useState<Set<string>>(new Set());
+
   // State for editing items
   const [editingWinkelId, setEditingWinkelId] = useState<bigint | null>(null);
   const [editingWinkelData, setEditingWinkelData] = useState<Omit<Winkel, 'id'>>({ naam: '', keten: '', land: { NL: null } });
@@ -103,6 +106,41 @@ function App() {
   useEffect(() => {
     fetchAllData();
   }, [fetchAllData]);
+
+  // --- EFFECT HOOK VOOR AUTOMATISCH INVULLEN LAATSTE AANKOOP ---
+  useEffect(() => {
+    const findLastPurchase = () => {
+      const { productId, winkelId } = formAankoop;
+
+      if (productId && winkelId) {
+        const matchingPurchases = aankopen
+          .map(a => a[0]) // We hebben alleen het Aankoop object nodig
+          .filter(a => String(a.productId) === productId && String(a.winkelId) === winkelId);
+
+        if (matchingPurchases.length > 0) {
+          // Sorteer op datum (meest recente eerst)
+          matchingPurchases.sort((a, b) => Number(b.datum) - Number(a.datum));
+          const lastPurchase = matchingPurchases[0];
+
+          // Vul het formulier met de data van de laatste aankoop
+          setFormAankoop(prev => ({
+            ...prev,
+            bonOmschrijving: lastPurchase.bonOmschrijving,
+            prijs: String(lastPurchase.prijs),
+            hoeveelheid: String(lastPurchase.hoeveelheid),
+          }));
+
+          // Markeer de velden als 'voorgesteld'
+          setSuggestedFields(new Set(['bonOmschrijving', 'prijs', 'hoeveelheid']));
+        } else {
+          // Als er geen match is, reset de suggesties
+          setSuggestedFields(new Set());
+        }
+      }
+    };
+
+    findLastPurchase();
+  }, [formAankoop.productId, formAankoop.winkelId, aankopen]);
 
   // --- WINKEL HANDLERS ---
   const handleAddWinkel = async (e: React.FormEvent) => {
@@ -260,6 +298,7 @@ function App() {
       setFormAankoop({ productId: '', winkelId: '', bonOmschrijving: '', prijs: '', hoeveelheid: '' });
       setProductSearch('');
       setWinkelSearch('');
+      setSuggestedFields(new Set()); // Reset suggesties na toevoegen
       await fetchAllData();
     } catch (error) {
       alert("Fout bij toevoegen van aankoop.");
@@ -605,24 +644,60 @@ function App() {
 
         <CollapsibleSection title="Nieuwe Aankoop Toevoegen">
           <form onSubmit={handleAddAankoop} className="form-grid">
-            <input list="product-options" value={productSearch} onChange={e => {
-              const value = e.target.value;
-              setProductSearch(value);
-              const selectedProd = products.find(p => `${p.naam} (${p.merk})` === value);
-              setFormAankoop(prev => ({ ...prev, productId: selectedProd ? String(selectedProd.id) : '' }));
-            }} placeholder="-- Selecteer Product --" required />
+            <div className="form-field">
+              <label htmlFor="product-select">Product:</label>
+              <input
+                id="product-select"
+                list="product-options"
+                value={productSearch}
+                onChange={e => {
+                  const value = e.target.value;
+                  setProductSearch(value);
+                  const selectedProd = products.find(p => `${p.naam} (${p.merk})` === value);
+                  // Reset suggesties bij nieuw product
+                  setSuggestedFields(new Set());
+                  setFormAankoop(prev => ({
+                    ...prev,
+                    productId: selectedProd ? String(selectedProd.id) : '',
+                    bonOmschrijving: '',
+                    prijs: '',
+                    hoeveelheid: ''
+                  }));
+                }}
+                placeholder="-- Selecteer Product --"
+                required
+              />
+            </div>
             <datalist id="product-options">
               {products.slice().sort((a, b) => a.naam.localeCompare(b.naam)).map(p =>
                 <option key={Number(p.id)} value={`${p.naam} (${p.merk})`} />
               )}
             </datalist>
 
-            <input list="winkel-options" value={winkelSearch} onChange={e => {
-              const value = e.target.value;
-              setWinkelSearch(value);
-              const selectedWinkel = winkels.find(w => `${Object.keys(w.land)[0]} - ${w.naam} (${w.keten})` === value);
-              setFormAankoop(prev => ({ ...prev, winkelId: selectedWinkel ? String(selectedWinkel.id) : '' }));
-            }} placeholder="-- Selecteer Winkel --" required />
+            <div className="form-field">
+              <label htmlFor="winkel-select">Winkel:</label>
+              <input
+                id="winkel-select"
+                list="winkel-options"
+                value={winkelSearch}
+                onChange={e => {
+                  const value = e.target.value;
+                  setWinkelSearch(value);
+                  const selectedWinkel = winkels.find(w => `${Object.keys(w.land)[0]} - ${w.naam} (${w.keten})` === value);
+                  // Reset suggesties bij nieuwe winkel
+                  setSuggestedFields(new Set());
+                  setFormAankoop(prev => ({
+                    ...prev,
+                    winkelId: selectedWinkel ? String(selectedWinkel.id) : '',
+                    bonOmschrijving: '',
+                    prijs: '',
+                    hoeveelheid: ''
+                  }));
+                }}
+                placeholder="-- Selecteer Winkel --"
+                required
+              />
+            </div>
             <datalist id="winkel-options">
               {winkels.slice().sort((a, b) => {
                 const landA = Object.keys(a.land)[0];
@@ -634,18 +709,72 @@ function App() {
               ))}
             </datalist>
 
-            <input type="text" placeholder="Bon omschrijving" value={formAankoop.bonOmschrijving} onChange={e => setFormAankoop({ ...formAankoop, bonOmschrijving: e.target.value })} required />
-            <input type="number" step="0.01" placeholder="Prijs (€)" value={formAankoop.prijs} onChange={e => setFormAankoop({ ...formAankoop, prijs: e.target.value })} required />
-
-            <div className="hoeveelheid-input">
-              <input type="number" step="0.001" placeholder="Hoeveelheid" value={formAankoop.hoeveelheid} onChange={e => setFormAankoop({ ...formAankoop, hoeveelheid: e.target.value })} required />
-              <span>
-                {selectedProductForAankoop ? formatEenheid(selectedProductForAankoop.standaardEenheid).replace('per ', '') : '...'}
-              </span>
+            <div className="form-field">
+              <label htmlFor="bon-omschrijving">Bon omschrijving:</label>
+              <input
+                id="bon-omschrijving"
+                type="text"
+                placeholder="Bon omschrijving"
+                value={formAankoop.bonOmschrijving}
+                onChange={e => setFormAankoop({ ...formAankoop, bonOmschrijving: e.target.value })}
+                required
+                className={suggestedFields.has('bonOmschrijving') ? 'suggested-input' : ''}
+                onInput={() => {
+                  const newSuggestions = new Set(suggestedFields);
+                  newSuggestions.delete('bonOmschrijving');
+                  setSuggestedFields(newSuggestions);
+                }}
+              />
             </div>
-            <button type="submit" className="button-primary" disabled={isSubmitting}>
-              {isSubmitting ? 'Bezig...' : 'Voeg Aankoop Toe'}
-            </button>
+
+            <div className="form-field">
+              <label htmlFor="prijs">Prijs (€):</label>
+              <input
+                id="prijs"
+                type="number"
+                step="0.01"
+                placeholder="Prijs (€)"
+                value={formAankoop.prijs}
+                onChange={e => setFormAankoop({ ...formAankoop, prijs: e.target.value })}
+                required
+                className={suggestedFields.has('prijs') ? 'suggested-input' : ''}
+                onInput={() => {
+                  const newSuggestions = new Set(suggestedFields);
+                  newSuggestions.delete('prijs');
+                  setSuggestedFields(newSuggestions);
+                }}
+              />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="hoeveelheid">Hoeveelheid:</label>
+              <div className="hoeveelheid-input">
+                <input
+                  id="hoeveelheid"
+                  type="number"
+                  step="0.001"
+                  placeholder="Hoeveelheid"
+                  value={formAankoop.hoeveelheid}
+                  onChange={e => setFormAankoop({ ...formAankoop, hoeveelheid: e.target.value })}
+                  required
+                  className={suggestedFields.has('hoeveelheid') ? 'suggested-input' : ''}
+                  onInput={() => {
+                    const newSuggestions = new Set(suggestedFields);
+                    newSuggestions.delete('hoeveelheid');
+                    setSuggestedFields(newSuggestions);
+                  }}
+                />
+                <span>
+                  {selectedProductForAankoop ? formatEenheid(selectedProductForAankoop.standaardEenheid).replace('per ', '') : '...'}
+                </span>
+              </div>
+            </div>
+
+            <div className="form-field">
+              <button type="submit" className="button-primary full-width" disabled={isSubmitting}>
+                {isSubmitting ? 'Bezig...' : 'Voeg Aankoop Toe'}
+              </button>
+            </div>
           </form>
         </CollapsibleSection>
 
@@ -663,17 +792,17 @@ function App() {
           </div>
 
           <CollapsibleSection title="Nederland" startOpen={true}>
-            <PriceFinderTable 
-              countryCode="NL" 
+            <PriceFinderTable
+              countryCode="NL"
               selectedProducts={selectedProducts}
-              onSelectionChange={handleSelectionChange} 
+              onSelectionChange={handleSelectionChange}
             />
           </CollapsibleSection>
           <CollapsibleSection title="Spanje">
-            <PriceFinderTable 
+            <PriceFinderTable
               countryCode="ES"
               selectedProducts={selectedProducts}
-              onSelectionChange={handleSelectionChange} 
+              onSelectionChange={handleSelectionChange}
             />
           </CollapsibleSection>
         </section>

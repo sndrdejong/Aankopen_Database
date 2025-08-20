@@ -47,7 +47,7 @@ body {
   font-size: 1.6rem;
 }
 
-main > * {
+main>* {
   margin-bottom: 2rem;
 }
 
@@ -91,6 +91,7 @@ button:disabled {
   background-color: var(--primary-color);
   color: white;
 }
+
 .button-primary:hover {
   background-color: var(--primary-hover);
 }
@@ -99,14 +100,47 @@ button:disabled {
   background-color: var(--secondary-color);
   color: white;
 }
+
 .button-secondary:hover {
   background-color: var(--secondary-hover);
+}
+
+.suggested-input {
+  background-color: #fffbdd;
+  /* Een lichte gele kleur */
+  border-color: #f7d000;
+  transition: background-color 0.3s ease;
+}
+
+/* --- Form Field Styling --- */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.form-field label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-color);
+}
+
+/* Mobiele aanpassing voor form fields */
+@media (max-width: 767px) {
+  .form-field {
+    gap: 0.2rem;
+  }
+
+  .form-field label {
+    font-size: 0.85rem;
+  }
 }
 
 .button-danger {
   background-color: var(--danger-color);
   color: white;
 }
+
 .button-danger:hover {
   background-color: var(--danger-hover);
 }
@@ -115,13 +149,14 @@ button:disabled {
   background-color: var(--success-color);
   color: white;
 }
+
 .button-success:hover {
   background-color: var(--success-hover);
 }
 
 .full-width {
-    width: 100%;
-    margin-bottom: 1rem;
+  width: 100%;
+  margin-bottom: 1rem;
 }
 
 /* --- Formulieren --- */
@@ -143,16 +178,18 @@ select {
 }
 
 .hoeveelheid-input {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
+
 .hoeveelheid-input input {
-    flex-grow: 1;
+  flex-grow: 1;
 }
+
 .hoeveelheid-input span {
-    font-weight: 500;
-    white-space: nowrap;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 /* --- Tabellen --- */
@@ -166,7 +203,8 @@ table {
   margin-top: 1rem;
 }
 
-th, td {
+th,
+td {
   padding: 0.7rem;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
@@ -231,6 +269,7 @@ tbody tr:hover {
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     align-items: center;
   }
+
   .form-grid button {
     grid-column: -1;
   }
@@ -240,7 +279,7 @@ tbody tr:hover {
   thead {
     display: none;
   }
-  
+
   tr {
     display: block;
     border: 1px solid var(--border-color);
@@ -248,7 +287,7 @@ tbody tr:hover {
     margin-bottom: 1rem;
     box-shadow: var(--box-shadow);
   }
-  
+
   td {
     display: flex;
     justify-content: space-between;
@@ -256,7 +295,7 @@ tbody tr:hover {
     padding: 0.7rem 1rem;
     border-bottom: 1px dotted var(--border-color);
   }
-  
+
   td:last-child {
     border-bottom: none;
   }
@@ -278,7 +317,8 @@ tbody tr:hover {
   .app-header {
     padding: 1rem;
     margin-bottom: 1.5rem;
-    border-radius: var(--border-radius); /* Behoud de radius voor consistentie */
+    border-radius: var(--border-radius);
+    /* Behoud de radius voor consistentie */
   }
 
   .app-header h1 {
@@ -286,7 +326,7 @@ tbody tr:hover {
   }
 
   /* Verminder de verticale ruimte tussen de hoofdsecties */
-  main > * {
+  main>* {
     margin-bottom: 1.5rem;
   }
 
@@ -304,7 +344,7 @@ tbody tr:hover {
   /* Maak de titels van secties en kaarten iets kleiner */
   .collapsible-header,
   .card h2 {
-      font-size: 1.1rem;
+    font-size: 1.1rem;
   }
 
   /* Verminder de padding in tabelcellen voor meer data per regel */

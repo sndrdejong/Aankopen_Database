@@ -13,7 +13,7 @@ persistent actor BoodschappenDB {
   public type Land = { #NL; #ES };
   public type Eenheid = {
     #STUK; #METER; #KILOGRAM; #GRAM;
-    #LITER; #MILLILITER; #ROL; #TABLET;
+    #LITER; #MILLILITER; #ROL; #TABLET;    
   };
   public type Winkel = { id : Nat; naam : Text; keten : Text; land : Land };
   public type Product = {

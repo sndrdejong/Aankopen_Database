@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Aankoop_Database_backend as backend } from 'declarations/Aankoop_Database_backend';
 import { Aankoop, BestePrijsInfo, Eenheid, Land, Product, Winkel, AllBestPricesResult } from 'declarations/Aankoop_Database_backend/Aankoop_Database_backend.did';
 import './App.css'; // Importeer de stylesheet
+import DashboardStats from './DashboardStats'; // Importeer de nieuwe component
 
 // Helper component for collapsible sections
 const CollapsibleSection = ({ title, children, startOpen = false }: { title: string, children: React.ReactNode, startOpen?: boolean }) => {
@@ -32,6 +33,177 @@ const eenheidOptions = [
   'STUK', 'METER', 'KILOGRAM', 'GRAM', 'LITER', 'MILLILITER', 'ROL', 'TABLET'
 ] as const;
 
+// Helper function
+const formatEenheid = (eenheid?: object): string => {
+  if (!eenheid) return '';
+  const key = Object.keys(eenheid)[0];
+  switch (key) {
+    case 'STUK': return 'per stuk';
+    case 'KILOGRAM': return 'per kg';
+    case 'GRAM': return 'per gram';
+    case 'LITER': return 'per liter';
+    case 'MILLILITER': return 'per ml';
+    case 'ROL': return 'per rol';
+    case 'TABLET': return 'per tablet';
+    case 'METER': return 'per meter';
+    default: return '';
+  }
+};
+
+
+// =================================================================================================
+// GEFIXED: PriceFinderTable is nu een opzichzelfstaande component buiten de App component.
+// Dit voorkomt dat de component opnieuw wordt aangemaakt bij elke toetsaanslag,
+// waardoor de input focus behouden blijft.
+// =================================================================================================
+const PriceFinderTable = ({
+  countryCode,
+  products,
+  bestPrices,
+  selectedProducts,
+  onSelectionChange,
+  winkels,
+  selectedStoreIds,
+  searchTerm,
+  setSearchTerm
+}: {
+  countryCode: 'NL' | 'ES',
+  products: Product[],
+  bestPrices: Map<bigint, BestPriceByCountry>,
+  selectedProducts: Set<string>,
+  onSelectionChange: (productId: bigint, countryCode: 'NL' | 'ES') => void,
+  winkels: Winkel[],
+  selectedStoreIds: Set<bigint>,
+  searchTerm: string,
+  setSearchTerm: (value: string) => void
+}) => {
+  const sortedProducts = useMemo(() => {
+    return [...products]
+      .sort((a, b) => {
+        const aHasPrice = bestPrices.has(a.id) && bestPrices.get(a.id)?.[countryCode] !== undefined;
+        const bHasPrice = bestPrices.has(b.id) && bestPrices.get(b.id)?.[countryCode] !== undefined;
+
+        if (aHasPrice && !bHasPrice) return -1;
+        if (!aHasPrice && bHasPrice) return 1;
+
+        return a.naam.localeCompare(b.naam);
+      });
+  }, [products, bestPrices, countryCode]);
+
+  const filteredSortedProducts = useMemo(() => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    if (!lowerCaseSearchTerm) return sortedProducts;
+    return sortedProducts.filter(p =>
+      p.naam.toLowerCase().includes(lowerCaseSearchTerm) ||
+      p.merk.toLowerCase().includes(lowerCaseSearchTerm)
+    );
+  }, [sortedProducts, searchTerm]);
+
+  const hasAnyPriceForCountry = useMemo(() =>
+    products.some(p => bestPrices.has(p.id) && bestPrices.get(p.id)?.[countryCode]),
+    [products, bestPrices, countryCode]
+  );
+  
+  // WIJZIGING: Functie om prijs te converteren en formatteren
+  const formatAndConvertPrice = (priceInfo: BestePrijsInfo): string => {
+    const unitKey = Object.keys(priceInfo.eenheid)[0];
+    const originalPrice = priceInfo.eenheidsprijs;
+
+    if (unitKey === 'GRAM') {
+      const pricePerKg = originalPrice * 1000;
+      return `€${pricePerKg.toFixed(2)} per kg`;
+    }
+
+    if (unitKey === 'MILLILITER') {
+      const pricePerLiter = originalPrice * 1000;
+      return `€${pricePerLiter.toFixed(2)} per liter`;
+    }
+    
+    // Fallback voor alle andere eenheden
+    return `€${originalPrice.toFixed(2)} ${formatEenheid(priceInfo.eenheid)}`;
+  };
+
+  return (
+    <div className="table-container">
+      <div className="filter-controls">
+        <input
+          type="text"
+          placeholder="Zoek product op naam of merk..."
+          value={searchTerm}
+          onChange={e => setSearchTerm(e.target.value)}
+        />
+        <button onClick={() => setSearchTerm('')} className="button-secondary">Reset</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>✓</th>
+            <th>Product</th>
+            <th>Merk</th>
+            <th>Winkel</th>
+            <th>Prijs</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredSortedProducts.map(p => {
+            const bestPriceInCountry = bestPrices.get(p.id)?.[countryCode];
+            const selectionId = `${p.id}-${countryCode}`;
+            const isSelected = selectedProducts.has(selectionId);
+
+            const winkelOfBestPrice = bestPriceInCountry ? winkels.find(w => w.naam === bestPriceInCountry.winkelNaam && Object.keys(w.land)[0] === countryCode) : null;
+            const isStoreVisible = selectedStoreIds.size === 0 || (winkelOfBestPrice && selectedStoreIds.has(winkelOfBestPrice.id));
+
+
+            if (bestPriceInCountry && isStoreVisible) {
+              return (
+                <tr key={Number(p.id)} className={isSelected ? 'selected-row' : ''}>
+                  <td data-label="Selecteer">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onSelectionChange(p.id, countryCode)}
+                      className="selection-checkbox"
+                    />
+                  </td>
+                  <td data-label="Product">{p.naam}</td>
+                  <td data-label="Merk">{p.merk}</td>
+                  <td data-label="Winkel">{bestPriceInCountry.winkelNaam}</td>
+                  {/* WIJZIGING: Gebruik de nieuwe formatteerfunctie */}
+                  <td data-label="Prijs">{formatAndConvertPrice(bestPriceInCountry)}</td>
+                </tr>
+              );
+            } else {
+              const reason = bestPriceInCountry && !isStoreVisible ? 'Winkel gefilterd' : 'Geen prijs bekend';
+              return (
+                <tr key={Number(p.id)} className={`disabled-row ${isSelected ? 'selected-row' : ''}`}>
+                  <td data-label="Selecteer">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onSelectionChange(p.id, countryCode)}
+                      className="selection-checkbox"
+                    />
+                  </td>
+                  <td data-label="Product">{p.naam}</td>
+                  <td data-label="Merk">{p.merk}</td>
+                  <td data-label="Winkel">N/A</td>
+                  <td data-label="Prijs">{reason}</td>
+                </tr>
+              );
+            }
+          })}
+        </tbody>
+      </table>
+      {!hasAnyPriceForCountry && (
+        <p style={{ textAlign: 'center', padding: '1rem' }}>
+          Nog geen prijzen gevonden voor {countryCode === 'NL' ? 'Nederland' : 'Spanje'}.
+        </p>
+      )}
+    </div>
+  );
+};
+
+
 function App() {
   const [winkels, setWinkels] = useState<Winkel[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -47,10 +219,14 @@ function App() {
   // --- State voor selectie van beste prijzen ---
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
 
-  // --- NIEUW: State voor filters ---
+  // --- State voor filters ---
   const [winkelSearchTerm, setWinkelSearchTerm] = useState('');
   const [productSearchTerm, setProductSearchTerm] = useState('');
+  const [aankoopSearchTerm, setAankoopSearchTerm] = useState(''); // WIJZIGING: State voor aankoop historie zoekbalk
   const [selectedStoreIds, setSelectedStoreIds] = useState<Set<bigint>>(new Set());
+  const [storeFilterSearchTerm, setStoreFilterSearchTerm] = useState('');
+  const [priceFinderNlSearch, setPriceFinderNlSearch] = useState('');
+  const [priceFinderEsSearch, setPriceFinderEsSearch] = useState('');
 
 
   // State for forms
@@ -62,7 +238,7 @@ function App() {
   const [productSearch, setProductSearch] = useState('');
   const [winkelSearch, setWinkelSearch] = useState('');
 
-  // NIEUW: State om bij te houden welke velden een suggestie bevatten
+  // State om bij te houden welke velden een suggestie bevatten
   const [suggestedFields, setSuggestedFields] = useState<Set<string>>(new Set());
 
   // State for editing items
@@ -113,33 +289,56 @@ function App() {
     fetchAllData();
   }, [fetchAllData]);
 
-  // --- NIEUWE FUNCTIE: Duplicaatcontrole voor producten ---
-  const isDuplicateProduct = (naam: string, merk: string): boolean => {
-    const cleanNaam = naam.trim().toLowerCase();
-    const cleanMerk = (merk.trim() === '' ? 'n.v.t.' : merk.trim()).toLowerCase();
-    
-    return products.some(product => 
-      product.naam.trim().toLowerCase() === cleanNaam && 
-      product.merk.trim().toLowerCase() === cleanMerk
-    );
-  };
+  // --- WIJZIGING: State en effect voor dynamische productwaarschuwing ---
+  const [productWarning, setProductWarning] = useState<string>('');
 
-  // --- EFFECT HOOK VOOR AUTOMATISCH INVULLEN LAATSTE AANKOOP ---
+  useEffect(() => {
+    const checkProductExistence = () => {
+      const cleanNaam = formProduct.naam.trim().toLowerCase();
+      if (!cleanNaam) {
+        setProductWarning('');
+        return;
+      }
+
+      // Zoek naar producten met dezelfde naam
+      const matchingProductsByName = products.filter(p => p.naam.trim().toLowerCase() === cleanNaam);
+
+      if (matchingProductsByName.length > 0) {
+        // Naam bestaat al. Controleer nu het merk.
+        const cleanMerk = formProduct.merk.trim().toLowerCase();
+        const existingMerken = matchingProductsByName.map(p => p.merk.trim().toLowerCase());
+
+        // Geef een waarschuwing als het merk leeg is of als het al bestaat voor dit product
+        if (cleanMerk === '' || existingMerken.includes(cleanMerk)) {
+          setProductWarning("⚠️ Dit product bestaat mogelijk al. Check bestaande producten!");
+        } else {
+          // De gebruiker vult een nieuw merk in, dus de waarschuwing kan weg
+          setProductWarning('');
+        }
+      } else {
+        // Productnaam is volledig nieuw, geen waarschuwing nodig
+        setProductWarning('');
+      }
+    };
+
+    checkProductExistence();
+  }, [formProduct.naam, formProduct.merk, products]);
+
+
+  // --- Effect hook voor automatisch invullen laatste aankoop ---
   useEffect(() => {
     const findLastPurchase = () => {
       const { productId, winkelId } = formAankoop;
 
       if (productId && winkelId) {
         const matchingPurchases = aankopen
-          .map(a => a[0]) // We hebben alleen het Aankoop object nodig
+          .map(a => a[0])
           .filter(a => String(a.productId) === productId && String(a.winkelId) === winkelId);
 
         if (matchingPurchases.length > 0) {
-          // Sorteer op datum (meest recente eerst)
           matchingPurchases.sort((a, b) => Number(b.datum) - Number(a.datum));
           const lastPurchase = matchingPurchases[0];
 
-          // Vul het formulier met de data van de laatste aankoop
           setFormAankoop(prev => ({
             ...prev,
             bonOmschrijving: lastPurchase.bonOmschrijving,
@@ -147,10 +346,8 @@ function App() {
             hoeveelheid: String(lastPurchase.hoeveelheid),
           }));
 
-          // Markeer de velden als 'voorgesteld'
           setSuggestedFields(new Set(['bonOmschrijving', 'prijs', 'hoeveelheid']));
         } else {
-          // Als er geen match is, reset de suggesties
           setSuggestedFields(new Set());
         }
       }
@@ -228,11 +425,19 @@ function App() {
   // --- PRODUCT HANDLERS ---
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Controleer op duplicaat voordat we toevoegen
+
+    // Check voor een exacte duplicaat (naam + merk) bij het submitten
+    const cleanNaam = formProduct.naam.trim().toLowerCase();
     const finalMerk = formProduct.merk.trim() === '' ? 'n.v.t.' : formProduct.merk;
-    if (isDuplicateProduct(formProduct.naam, finalMerk)) {
-      if (!window.confirm("Dit product lijkt al te bestaan. Weet je zeker dat je het wilt toevoegen?")) {
+    const cleanMerk = finalMerk.toLowerCase();
+
+    const isExactDuplicate = products.some(product =>
+        product.naam.trim().toLowerCase() === cleanNaam &&
+        product.merk.trim().toLowerCase() === cleanMerk
+    );
+
+    if (isExactDuplicate) {
+      if (!window.confirm("Dit product met dit merk bestaat al. Weet je zeker dat je het wilt toevoegen?")) {
         return;
       }
     }
@@ -240,7 +445,7 @@ function App() {
     setIsSubmitting(true);
     try {
       const { naam, merk, standaardEenheid } = formProduct;
-      const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk;
+      // De finalMerk is hierboven al gedefinieerd
       const trefwoordenArray: string[] = ['n.v.t.'];
       await backend.addProduct(naam, finalMerk, trefwoordenArray, standaardEenheid);
       alert("Product succesvol toegevoegd!");
@@ -280,21 +485,20 @@ function App() {
       alert("Naam mag niet leeg zijn.");
       return;
     }
-    
-    // Controleer op duplicaat bij het bijwerken
+
     const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk;
-    const isDuplicaat = products.some(product => 
-      product.id !== id && 
-      product.naam.trim().toLowerCase() === naam.trim().toLowerCase() && 
+    const isDuplicaat = products.some(product =>
+      product.id !== id &&
+      product.naam.trim().toLowerCase() === naam.trim().toLowerCase() &&
       product.merk.trim().toLowerCase() === finalMerk.trim().toLowerCase()
     );
-    
+
     if (isDuplicaat) {
       if (!window.confirm("Dit product lijkt al te bestaan. Weet je zeker dat je het wilt bijwerken?")) {
         return;
       }
     }
-    
+
     setUpdatingItemId(id);
     try {
       const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk;
@@ -339,7 +543,7 @@ function App() {
       setFormAankoop({ productId: '', winkelId: '', bonOmschrijving: '', prijs: '', hoeveelheid: '' });
       setProductSearch('');
       setWinkelSearch('');
-      setSuggestedFields(new Set()); // Reset suggesties na toevoegen
+      setSuggestedFields(new Set());
       await fetchAllData();
     } catch (error) {
       alert("Fout bij toevoegen van aankoop.");
@@ -401,7 +605,6 @@ function App() {
     });
 
     const sortedSelection = selectionData.sort((a, b) => {
-      // Use a placeholder for items without a store to sort them last
       const winkelA = a.priceInfo?.winkelNaam ?? 'ZZZ_NO_WINKEL';
       const winkelB = b.priceInfo?.winkelNaam ?? 'ZZZ_NO_WINKEL';
       const winkelCompare = winkelA.localeCompare(winkelB);
@@ -426,7 +629,6 @@ function App() {
         const priceString = `€${priceInfo.eenheidsprijs.toFixed(2)} ${formatEenheid(priceInfo.eenheid)}`;
         exportText += `- ${product.naam} (${product.merk}): ${priceString}\n`;
       } else {
-        // Handle products without a price
         if (currentWinkel !== noWinkelGroupName) {
           currentWinkel = noWinkelGroupName;
           exportText += `\n${noWinkelGroupName}\n`;
@@ -443,24 +645,6 @@ function App() {
     });
   };
 
-
-  // --- HELPER & RENDER FUNCTIES ---
-  const formatEenheid = (eenheid?: object): string => {
-    if (!eenheid) return '';
-    const key = Object.keys(eenheid)[0];
-    switch (key) {
-      case 'STUK': return 'per stuk';
-      case 'KILOGRAM': return 'per kg';
-      case 'GRAM': return 'per gram';
-      case 'LITER': return 'per liter';
-      case 'MILLILITER': return 'per ml';
-      case 'ROL': return 'per rol';
-      case 'TABLET': return 'per tablet';
-      case 'METER': return 'per meter';
-      default: return '';
-    }
-  };
-
   // --- FILTER LOGIC ---
   const filteredWinkels = useMemo(() => {
     return winkels.filter(w => {
@@ -469,6 +653,14 @@ function App() {
       return w.naam.toLowerCase().includes(searchTerm) || w.keten.toLowerCase().includes(searchTerm);
     });
   }, [winkels, winkelSearchTerm]);
+
+  const filteredStoreSelection = useMemo(() => {
+    return winkels.filter(w => {
+      const searchTerm = storeFilterSearchTerm.toLowerCase();
+      if (!searchTerm) return true;
+      return w.naam.toLowerCase().includes(searchTerm) || w.keten.toLowerCase().includes(searchTerm);
+    });
+  }, [winkels, storeFilterSearchTerm]);
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
@@ -484,111 +676,18 @@ function App() {
       return selectedStoreIds.has(aankoop.winkelId);
     });
   }, [aankopen, selectedStoreIds]);
-
-
-  const PriceFinderTable = ({
-    countryCode,
-    selectedProducts,
-    onSelectionChange,
-    winkels,
-    selectedStoreIds
-  }: {
-    countryCode: 'NL' | 'ES',
-    selectedProducts: Set<string>,
-    onSelectionChange: (productId: bigint, countryCode: 'NL' | 'ES') => void,
-    winkels: Winkel[],
-    selectedStoreIds: Set<bigint>
-  }) => {
-    const sortedProducts = useMemo(() => {
-      return [...products] // Create a shallow copy to avoid mutating the original array
-        .sort((a, b) => {
-          const aHasPrice = bestPrices.has(a.id) && bestPrices.get(a.id)?.[countryCode] !== undefined;
-          const bHasPrice = bestPrices.has(b.id) && bestPrices.get(b.id)?.[countryCode] !== undefined;
-
-          // If one has a price and the other doesn't, the one with the price comes first
-          if (aHasPrice && !bHasPrice) return -1;
-          if (!aHasPrice && bHasPrice) return 1;
-
-          // Otherwise (both have a price or both don't), sort alphabetically by product name
-          return a.naam.localeCompare(b.naam);
-        });
-    }, [products, bestPrices, countryCode]);
-
-    const hasAnyPriceForCountry = useMemo(() =>
-      products.some(p => bestPrices.has(p.id) && bestPrices.get(p.id)?.[countryCode]),
-      [products, bestPrices, countryCode]
+  
+  // WIJZIGING: Voegt een extra filterstap toe voor de zoekbalk in aankoopgeschiedenis
+  const searchedAankopen = useMemo(() => {
+    const searchTerm = aankoopSearchTerm.toLowerCase();
+    if (!searchTerm) {
+        return filteredAankopen;
+    }
+    return filteredAankopen.filter(([, prodNaam, winkelNaam]) => 
+        prodNaam.toLowerCase().includes(searchTerm) || 
+        winkelNaam.toLowerCase().includes(searchTerm)
     );
-
-    return (
-      <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>✓</th>
-              <th>Product</th>
-              <th>Merk</th>
-              <th>Winkel</th>
-              <th>Prijs</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedProducts.map(p => {
-              const bestPriceInCountry = bestPrices.get(p.id)?.[countryCode];
-              const selectionId = `${p.id}-${countryCode}`;
-              const isSelected = selectedProducts.has(selectionId);
-
-              // Check if the store for the best price is in the selected stores
-              const winkelOfBestPrice = bestPriceInCountry ? winkels.find(w => w.naam === bestPriceInCountry.winkelNaam && Object.keys(w.land)[0] === countryCode) : null;
-              const isStoreVisible = selectedStoreIds.size === 0 || (winkelOfBestPrice && selectedStoreIds.has(winkelOfBestPrice.id));
-
-
-              if (bestPriceInCountry && isStoreVisible) {
-                return (
-                  <tr key={Number(p.id)} className={isSelected ? 'selected-row' : ''}>
-                    <td data-label="Selecteer">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onSelectionChange(p.id, countryCode)}
-                        className="selection-checkbox"
-                      />
-                    </td>
-                    <td data-label="Product">{p.naam}</td>
-                    <td data-label="Merk">{p.merk}</td>
-                    <td data-label="Winkel">{bestPriceInCountry.winkelNaam}</td>
-                    <td data-label="Prijs">{`€${bestPriceInCountry.eenheidsprijs.toFixed(2)} ${formatEenheid(bestPriceInCountry.eenheid)}`}</td>
-                  </tr>
-                );
-              } else {
-                 const reason = bestPriceInCountry && !isStoreVisible ? 'Winkel gefilterd' : 'Geen prijs bekend';
-                return (
-                  <tr key={Number(p.id)} className={`disabled-row ${isSelected ? 'selected-row' : ''}`}>
-                    <td data-label="Selecteer">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onSelectionChange(p.id, countryCode)}
-                        className="selection-checkbox"
-                      />
-                    </td>
-                    <td data-label="Product">{p.naam}</td>
-                    <td data-label="Merk">{p.merk}</td>
-                    <td data-label="Winkel">N/A</td>
-                    <td data-label="Prijs">{reason}</td>
-                  </tr>
-                );
-              }
-            })}
-          </tbody>
-        </table>
-        {!hasAnyPriceForCountry && (
-          <p style={{ textAlign: 'center', padding: '1rem' }}>
-            Nog geen prijzen gevonden voor {countryCode === 'NL' ? 'Nederland' : 'Spanje'}.
-          </p>
-        )}
-      </div>
-    );
-  };
+  }, [filteredAankopen, aankoopSearchTerm]);
 
   const selectedProductForAankoop = formAankoop.productId ? products.find(p => p.id === BigInt(formAankoop.productId)) : null;
 
@@ -597,40 +696,57 @@ function App() {
       <header className="app-header">
         <h1>🛒 Boodschappen Tracker</h1>
       </header>
+
+      <DashboardStats
+        aankopenCount={aankopen.length}
+        productsCount={products.length}
+        winkelsCount={winkels.length}
+        bestPrices={bestPrices}
+      />
+
       <main>
-        
-        <CollapsibleSection title="Beheer: Selecteer Winkels">
-            <div className="button-group" style={{ marginBottom: '1rem' }}>
-                <button onClick={() => {
-                    const allIds = new Set(winkels.map(w => w.id));
-                    setSelectedStoreIds(allIds);
-                }} className="button-secondary">Selecteer Alles</button>
-                <button onClick={() => setSelectedStoreIds(new Set())} className="button-secondary">Deselecteer Alles</button>
-            </div>
-            <div className="checkbox-grid">
-                {winkels.slice().sort((a,b) => a.naam.localeCompare(b.naam)).map(winkel => (
-                    <div key={Number(winkel.id)} className="checkbox-item">
-                        <input
-                            type="checkbox"
-                            id={`store-filter-${winkel.id}`}
-                            checked={selectedStoreIds.has(winkel.id)}
-                            onChange={e => {
-                                const newSelection = new Set(selectedStoreIds);
-                                if (e.target.checked) {
-                                    newSelection.add(winkel.id);
-                                } else {
-                                    newSelection.delete(winkel.id);
-                                }
-                                setSelectedStoreIds(newSelection);
-                            }}
-                        />
-                        <label htmlFor={`store-filter-${winkel.id}`}>
-                            {`${Object.keys(winkel.land)[0]} - ${winkel.naam} (${winkel.keten})`}
-                        </label>
-                    </div>
-                ))}
-            </div>
-            {selectedStoreIds.size > 0 && <p className="filter-info">{selectedStoreIds.size} van de {winkels.length} winkels geselecteerd.</p>}
+
+        <CollapsibleSection title="Beheer: Selecteer Winkels" startOpen={true}>
+          <div className="button-group" style={{ marginBottom: '1rem' }}>
+            <button onClick={() => {
+              const allIds = new Set(winkels.map(w => w.id));
+              setSelectedStoreIds(allIds);
+            }} className="button-secondary">Selecteer Alles</button>
+            <button onClick={() => setSelectedStoreIds(new Set())} className="button-secondary">Deselecteer Alles</button>
+          </div>
+          <div className="filter-controls">
+            <input
+              type="text"
+              placeholder="Zoek winkel op naam of plaats..."
+              value={storeFilterSearchTerm}
+              onChange={e => setStoreFilterSearchTerm(e.target.value)}
+            />
+            <button onClick={() => setStoreFilterSearchTerm('')} className="button-secondary">Reset</button>
+          </div>
+          <div className="checkbox-grid">
+            {filteredStoreSelection.slice().sort((a, b) => a.naam.localeCompare(b.naam)).map(winkel => (
+              <div key={Number(winkel.id)} className="checkbox-item">
+                <input
+                  type="checkbox"
+                  id={`store-filter-${winkel.id}`}
+                  checked={selectedStoreIds.has(winkel.id)}
+                  onChange={e => {
+                    const newSelection = new Set(selectedStoreIds);
+                    if (e.target.checked) {
+                      newSelection.add(winkel.id);
+                    } else {
+                      newSelection.delete(winkel.id);
+                    }
+                    setSelectedStoreIds(newSelection);
+                  }}
+                />
+                <label htmlFor={`store-filter-${winkel.id}`}>
+                  {`${Object.keys(winkel.land)[0]} - ${winkel.naam} (${winkel.keten})`}
+                </label>
+              </div>
+            ))}
+          </div>
+          {selectedStoreIds.size > 0 && <p className="filter-info">{selectedStoreIds.size} van de {winkels.length} winkels geselecteerd.</p>}
         </CollapsibleSection>
 
         <CollapsibleSection title="Beheer: Winkels">
@@ -647,14 +763,14 @@ function App() {
           </form>
 
           <CollapsibleSection title="Bekijk Bestaande Winkels">
-             <div className="filter-controls">
-                <input
-                    type="text"
-                    placeholder="Zoek op naam of plaats..."
-                    value={winkelSearchTerm}
-                    onChange={e => setWinkelSearchTerm(e.target.value)}
-                />
-                <button onClick={() => setWinkelSearchTerm('')} className="button-secondary">Reset</button>
+            <div className="filter-controls">
+              <input
+                type="text"
+                placeholder="Zoek op naam of plaats..."
+                value={winkelSearchTerm}
+                onChange={e => setWinkelSearchTerm(e.target.value)}
+              />
+              <button onClick={() => setWinkelSearchTerm('')} className="button-secondary">Reset</button>
             </div>
             <div className="table-container">
               <table>
@@ -705,33 +821,33 @@ function App() {
 
         <CollapsibleSection title="Beheer: Producten">
           <form onSubmit={handleAddProduct} className="form-grid">
-            <input 
-              type="text" 
-              placeholder="Naam product" 
-              value={formProduct.naam} 
-              onChange={e => setFormProduct({ ...formProduct, naam: e.target.value })} 
-              required 
+            <input
+              type="text"
+              placeholder="Naam product"
+              value={formProduct.naam}
+              onChange={e => setFormProduct({ ...formProduct, naam: e.target.value })}
+              required
             />
-            <input 
-              type="text" 
-              placeholder="Merk (optioneel)" 
-              value={formProduct.merk} 
-              onChange={e => setFormProduct({ ...formProduct, merk: e.target.value })} 
+            <input
+              type="text"
+              placeholder="Merk (optioneel)"
+              value={formProduct.merk}
+              onChange={e => setFormProduct({ ...formProduct, merk: e.target.value })}
             />
-            <select 
-              value={Object.keys(formProduct.standaardEenheid)[0]} 
+            <select
+              value={Object.keys(formProduct.standaardEenheid)[0]}
               onChange={e => {
                 const newEenheid = e.target.value as typeof eenheidOptions[number];
                 setFormProduct({ ...formProduct, standaardEenheid: { [newEenheid]: null } as Eenheid });
-              }} 
+              }}
               required
             >
               {[...eenheidOptions].sort().map(key => <option key={key} value={key}>{key.charAt(0) + key.slice(1).toLowerCase()}</option>)}
             </select>
-            
-            {/* GEWIJZIGD: Waarschuwing nu BOVEN de preview */}
-            {formProduct.naam && isDuplicateProduct(formProduct.naam, formProduct.merk) && (
-              <p className="warning">⚠️ Dit product bestaat mogelijk al</p>
+
+            {/* WIJZIGING: Gebruik van de nieuwe state voor de waarschuwing */}
+            {productWarning && (
+                <p className="warning">{productWarning}</p>
             )}
 
             <div className="product-preview">
@@ -740,7 +856,7 @@ function App() {
               <p><strong>Merk:</strong> {formProduct.merk || 'n.v.t.'}</p>
               <p><strong>Eenheid:</strong> {formatEenheid(formProduct.standaardEenheid)}</p>
             </div>
-            
+
             <button type="submit" className="button-primary" disabled={isSubmitting}>
               {isSubmitting ? 'Bezig...' : 'Voeg Product Toe'}
             </button>
@@ -748,13 +864,13 @@ function App() {
 
           <CollapsibleSection title="Bekijk Bestaande Producten">
             <div className="filter-controls">
-                <input
-                    type="text"
-                    placeholder="Zoek op naam of merk..."
-                    value={productSearchTerm}
-                    onChange={e => setProductSearchTerm(e.target.value)}
-                />
-                <button onClick={() => setProductSearchTerm('')} className="button-secondary">Reset</button>
+              <input
+                type="text"
+                placeholder="Zoek op naam of merk..."
+                value={productSearchTerm}
+                onChange={e => setProductSearchTerm(e.target.value)}
+              />
+              <button onClick={() => setProductSearchTerm('')} className="button-secondary">Reset</button>
             </div>
             <div className="table-container">
               <table>
@@ -811,7 +927,6 @@ function App() {
                   const value = e.target.value;
                   setProductSearch(value);
                   const selectedProd = products.find(p => `${p.naam} (${p.merk})` === value);
-                  // Reset suggesties bij nieuw product
                   setSuggestedFields(new Set());
                   setFormAankoop(prev => ({
                     ...prev,
@@ -841,7 +956,6 @@ function App() {
                   const value = e.target.value;
                   setWinkelSearch(value);
                   const selectedWinkel = winkels.find(w => `${Object.keys(w.land)[0]} - ${w.naam} (${w.keten})` === value);
-                  // Reset suggesties bij nieuwe winkel
                   setSuggestedFields(new Set());
                   setFormAankoop(prev => ({
                     ...prev,
@@ -936,40 +1050,62 @@ function App() {
         </CollapsibleSection>
 
         <section className="card">
-          <h2>Beste Prijs Vinder</h2>
+          <h2>Beste Prijs Vinder (o.b.v. toegevoegde aankopen)</h2>
           <div className="button-group">
             <button onClick={handleFindAllBestPrices} disabled={isLoadingPrices} className="button-primary">
               {isLoadingPrices ? 'Berekenen...' : 'Ververs Prijzen'}
             </button>
             {selectedProducts.size > 0 && (
-              <button onClick={handleExportSelection} className="button-success">
-                Exporteer Lijst ({selectedProducts.size})
-              </button>
+              <>
+                <button onClick={handleExportSelection} className="button-success">
+                  Exporteer Lijst ({selectedProducts.size})
+                </button>
+                <button onClick={() => setSelectedProducts(new Set())} className="button-danger">
+                  Reset Selectie
+                </button>
+              </>
             )}
           </div>
 
           <CollapsibleSection title="Nederland" startOpen={true}>
             <PriceFinderTable
               countryCode="NL"
+              products={products}
+              bestPrices={bestPrices}
               selectedProducts={selectedProducts}
               onSelectionChange={handleSelectionChange}
               winkels={winkels}
               selectedStoreIds={selectedStoreIds}
+              searchTerm={priceFinderNlSearch}
+              setSearchTerm={setPriceFinderNlSearch}
             />
           </CollapsibleSection>
           <CollapsibleSection title="Spanje">
             <PriceFinderTable
               countryCode="ES"
+              products={products}
+              bestPrices={bestPrices}
               selectedProducts={selectedProducts}
               onSelectionChange={handleSelectionChange}
               winkels={winkels}
               selectedStoreIds={selectedStoreIds}
+              searchTerm={priceFinderEsSearch}
+              setSearchTerm={setPriceFinderEsSearch}
             />
           </CollapsibleSection>
         </section>
 
-        <section className="card">
-          <h2>Aankopen Historie</h2>
+        <CollapsibleSection title="Aankopen Historie">
+           {/* WIJZIGING: Zoekbalk toegevoegd */}
+          <div className="filter-controls">
+            <input
+              type="text"
+              placeholder="Zoek op product of winkel..."
+              value={aankoopSearchTerm}
+              onChange={e => setAankoopSearchTerm(e.target.value)}
+            />
+            <button onClick={() => setAankoopSearchTerm('')} className="button-secondary">Reset</button>
+          </div>
           <div className="table-container">
             <table>
               <thead>
@@ -985,7 +1121,8 @@ function App() {
                 </tr>
               </thead>
               <tbody>
-                {filteredAankopen.slice().sort(([a], [b]) => Number(b.datum) - Number(a.datum)).map(([aankoop, prodNaam, winkelNaam]) => {
+                {/* WIJZIGING: Gebruikt de nieuwe gefilterde lijst 'searchedAankopen' */}
+                {searchedAankopen.slice().sort(([a], [b]) => Number(b.datum) - Number(a.datum)).map(([aankoop, prodNaam, winkelNaam]) => {
                   const winkel = winkels.find(w => w.id === aankoop.winkelId);
                   const product = products.find(p => p.id === aankoop.productId);
                   const land = winkel ? Object.keys(winkel.land)[0] : 'n/a';
@@ -1011,7 +1148,7 @@ function App() {
               </tbody>
             </table>
           </div>
-        </section>
+        </CollapsibleSection>
       </main>
     </div>
   );

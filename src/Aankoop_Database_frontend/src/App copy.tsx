@@ -33,40 +33,21 @@ const eenheidOptions = [
   'STUK', 'METER', 'KILOGRAM', 'GRAM', 'LITER', 'MILLILITER', 'ROL', 'TABLET'
 ] as const;
 
-// NIEUW: Icon mapping voor eenheden
-const eenheidIcons: Record<typeof eenheidOptions[number], string> = {
-  STUK: '📦🍾',
-  METER: '📏',
-  KILOGRAM: '⚖️',
-  GRAM: '⚖️',
-  LITER: '💧',
-  MILLILITER: '💧',
-  ROL: '🧻',
-  TABLET: '🧼',
-};
-
-// GEWIJZIGD: Helper functie om icoon toe te voegen
-const formatEenheid = (eenheid?: object, withIcon = true): string => {
+// Helper function
+const formatEenheid = (eenheid?: object): string => {
   if (!eenheid) return '';
-  const key = Object.keys(eenheid)[0] as typeof eenheidOptions[number];
-  if (!key) return '';
-
-  const icon = withIcon ? `${eenheidIcons[key] || ''} ` : '';
-  let text = '';
-
+  const key = Object.keys(eenheid)[0];
   switch (key) {
-    case 'STUK': text = 'per stuk'; break;
-    case 'KILOGRAM': text = 'per kg'; break;
-    case 'GRAM': text = 'per gram'; break;
-    case 'LITER': text = 'per liter'; break;
-    case 'MILLILITER': text = 'per ml'; break;
-    case 'ROL': text = 'per rol'; break;
-    case 'TABLET': text = 'per tablet'; break;
-    case 'METER': text = 'per meter'; break;
-    default: text = '';
+    case 'STUK': return 'per stuk';
+    case 'KILOGRAM': return 'per kg';
+    case 'GRAM': return 'per gram';
+    case 'LITER': return 'per liter';
+    case 'MILLILITER': return 'per ml';
+    case 'ROL': return 'per rol';
+    case 'TABLET': return 'per tablet';
+    case 'METER': return 'per meter';
+    default: return '';
   }
-
-  return `${icon}${text}`;
 };
 
 
@@ -844,7 +825,6 @@ function App() {
               value={formProduct.merk}
               onChange={e => setFormProduct({ ...formProduct, merk: e.target.value })}
             />
-            {/* GEWIJZIGD: Dropdown toont nu iconen */}
             <select
               value={Object.keys(formProduct.standaardEenheid)[0]}
               onChange={e => {
@@ -853,11 +833,7 @@ function App() {
               }}
               required
             >
-              {[...eenheidOptions].sort().map(key => (
-                <option key={key} value={key}>
-                  {`${eenheidIcons[key]} ${key.charAt(0) + key.slice(1).toLowerCase()}`}
-                </option>
-              ))}
+              {[...eenheidOptions].sort().map(key => <option key={key} value={key}>{key.charAt(0) + key.slice(1).toLowerCase()}</option>)}
             </select>
 
             {/* WIJZIGING: Gebruik van de nieuwe state voor de waarschuwing */}
@@ -1052,7 +1028,6 @@ function App() {
                     setSuggestedFields(newSuggestions);
                   }}
                 />
-                {/* De eenheid hier zal nu ook het icoon tonen */}
                 <span>
                   {selectedProductForAankoop ? formatEenheid(selectedProductForAankoop.standaardEenheid).replace('per ', '') : '...'}
                 </span>
@@ -1144,7 +1119,6 @@ function App() {
                   const winkel = winkels.find(w => w.id === aankoop.winkelId);
                   const product = products.find(p => p.id === aankoop.productId);
                   const land = winkel ? Object.keys(winkel.land)[0] : 'n/a';
-                  // De eenheid hier zal nu ook het icoon tonen
                   const eenheid = product ? formatEenheid(product.standaardEenheid).replace('per ', '') : 'n/a';
 
                   return (

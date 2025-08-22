@@ -254,6 +254,7 @@ function App() {
   const [priceFinderEsSearch, setPriceFinderEsSearch] = useState('');
 
   const [formWinkel, setFormWinkel] = useState({ naam: '', keten: '', land: { NL: null } as Land });
+  // ========== WIJZIGING 1: Standaard eenheid is nu een leeg object ==========
   const [formProduct, setFormProduct] = useState({ naam: '', merk: '', standaardEenheid: {} as Eenheid });
   const [formAankoop, setFormAankoop] = useState({ productId: '', winkelId: '', bonOmschrijving: '', prijs: '', hoeveelheid: '' });
 
@@ -269,7 +270,7 @@ function App() {
   const [editingProductData, setEditingProductData] = useState<Omit<Product, 'id' | 'trefwoorden'> & { trefwoorden: string }>({ naam: '', merk: '', trefwoorden: '', standaardEenheid: { STUK: null } });
 
   const [productWarning, setProductWarning] = useState<string>('');
-
+  
   const [priceWarning, setPriceWarning] = useState<string>('');
   const [isSubmissionBlocked, setIsSubmissionBlocked] = useState<boolean>(false);
 
@@ -287,8 +288,7 @@ function App() {
       setBestPrices(newBestPrices);
     } catch (error) {
       console.error("Error fetching best prices:", error);
-      // ========== WIJZIGING: Vertaling van alert ==========
-      alert("Er is iets misgegaan bij het berekenen van de prijzen.");
+      alert("Something went wrong while calculating prices.");
     } finally {
       setIsLoadingPrices(false);
     }
@@ -326,10 +326,8 @@ function App() {
       }
       for (const p of products) {
         const existingName = p.naam.trim().toLowerCase();
-        // Check for similarity but exclude exact matches, as they are handled elsewhere
         if ((existingName.includes(cleanNaam) || cleanNaam.includes(existingName)) && existingName !== cleanNaam) {
-          // ========== WIJZIGING: Vertaling van waarschuwing ==========
-          setProductWarning(`⚠️ Dit product lijkt sterk op "${p.naam}". Controleer bestaande producten voordat je het toevoegt.`);
+          setProductWarning(`⚠️ This product is similar to "${p.naam}". Check existing products before adding.`);
           return;
         }
       }
@@ -338,42 +336,31 @@ function App() {
     checkProductExistence();
   }, [formProduct.naam, products]);
 
-  // ========== WIJZIGING: Verbeterde useEffect om eenheid voor te stellen ==========
+  // ========== WIJZIGING 2: Nieuwe useEffect om eenheid voor te stellen ==========
   useEffect(() => {
     const suggestEenheid = () => {
       const inputNaam = formProduct.naam.trim().toLowerCase();
-
-      // Reset suggestion if input is cleared
-      if (inputNaam.length < 3) {
-        if (suggestedFields.has('standaardEenheid')) {
-          // FIX: Added 'as Eenheid' to match the expected type.
-          setFormProduct(prev => ({ ...prev, standaardEenheid: {} as Eenheid }));
-          const newSuggestions = new Set(suggestedFields);
-          newSuggestions.delete('standaardEenheid');
-          setSuggestedFields(newSuggestions);
-        }
+      // Doe alleen een suggestie als er getypt wordt en er nog geen eenheid is gekozen
+      if (inputNaam.length < 3 || Object.keys(formProduct.standaardEenheid).length > 0) {
         return;
       }
 
-      // Only suggest if a unit hasn't been chosen yet
-      if (Object.keys(formProduct.standaardEenheid).length > 0) {
-        return;
-      }
-
+      // Zoek naar een bestaand product dat een woord deelt met de input
       const inputWords = new Set(inputNaam.split(' ').filter(w => w.length > 2));
       for (const p of products) {
         const existingWords = p.naam.trim().toLowerCase().split(' ');
         for (const word of existingWords) {
           if (inputWords.has(word)) {
+            // Suggestie gevonden!
             setFormProduct(prev => ({ ...prev, standaardEenheid: p.standaardEenheid }));
             setSuggestedFields(prev => new Set(prev).add('standaardEenheid'));
-            return;
+            return; // Stop na de eerste match
           }
         }
       }
     };
     suggestEenheid();
-  }, [formProduct.naam, products, formProduct.standaardEenheid, suggestedFields]);
+  }, [formProduct.naam, products, formProduct.standaardEenheid]);
 
   useEffect(() => {
     const findLastPurchase = () => {
@@ -400,7 +387,7 @@ function App() {
     };
     findLastPurchase();
   }, [formAankoop.productId, formAankoop.winkelId, aankopen]);
-
+    
   // ==================================================================
   // USEEFFECT VOOR DE VOLLEDIGE PRIJSVALIDATIE LOGICA (BIJGEWERKT)
   // ==================================================================
@@ -409,6 +396,7 @@ function App() {
     const priceNum = parseFloat(prijs);
     const qtyNum = parseFloat(hoeveelheid);
 
+    // Stap 1: Controleer of alle benodigde velden zijn ingevuld en geldig zijn
     if (!productId || !prijs || !hoeveelheid || isNaN(priceNum) || isNaN(qtyNum) || qtyNum <= 0) {
       setPriceWarning('');
       setIsSubmissionBlocked(false);
@@ -418,16 +406,18 @@ function App() {
     const selectedProd = products.find(p => p.id === BigInt(productId));
     if (!selectedProd) return;
 
+    // Stap 2: Verzamel historische data
     const historicalPurchases = aankopen
       .map(a => a[0])
       .filter(a => a.productId === BigInt(productId));
-
+    
     const newUnitPrice = priceNum / qtyNum;
 
+    // Stap 3: IF - Genoeg data voor relatieve afwijkingscheck
     if (historicalPurchases.length >= MIN_PURCHASES_FOR_AVERAGE) {
       const unitPrices = historicalPurchases.map(a => a.prijs / a.hoeveelheid);
       const averageUnitPrice = unitPrices.reduce((sum, p) => sum + p, 0) / unitPrices.length;
-
+      
       const deviation = Math.abs((newUnitPrice - averageUnitPrice) / averageUnitPrice) * 100;
 
       if (deviation > DEVIATION_BLOCK_THRESHOLD) {
@@ -440,12 +430,14 @@ function App() {
         setPriceWarning('');
         setIsSubmissionBlocked(false);
       }
-    }
+    } 
+    // Stap 4: ELSE - Niet genoeg data, doe de absolute drempelwaardetest
     else {
       const unit = Object.keys(selectedProd.standaardEenheid)[0];
       let standardizedPrice = newUnitPrice;
       let standardizedUnit = unit;
 
+      // Standaardiseer de eenheid en prijs (Gram -> KG, Milliliter -> Liter)
       if (unit === 'GRAM') {
         standardizedPrice *= 1000;
         standardizedUnit = 'KILOGRAM';
@@ -455,17 +447,21 @@ function App() {
       }
 
       const maxThreshold = ABSOLUTE_PRICE_THRESHOLDS[standardizedUnit];
-      const minThreshold = ABSOLUTE_MIN_PRICE_THRESHOLDS[standardizedUnit];
+      const minThreshold = ABSOLUTE_MIN_PRICE_THRESHOLDS[standardizedUnit]; // Nieuwe ondergrens ophalen
 
       if (maxThreshold && standardizedPrice > maxThreshold) {
         setPriceWarning(`WAARSCHUWING: De prijs (€${standardizedPrice.toFixed(2)} per ${standardizedUnit.toLowerCase()}) lijkt ongebruikelijk hoog. Klopt dit?`);
         setIsSubmissionBlocked(false);
-      }
+      } 
+      // ==================================================================
+      // NIEUWE CHECK: controleer op ongebruikelijk lage prijs
+      // ==================================================================
       else if (minThreshold && standardizedPrice > 0 && standardizedPrice < minThreshold) {
         setPriceWarning(`WAARSCHUWING: De prijs (€${standardizedPrice.toFixed(2)} per ${standardizedUnit.toLowerCase()}) lijkt ongebruikelijk laag. Klopt dit?`);
-        setIsSubmissionBlocked(false);
+        setIsSubmissionBlocked(false); // Nooit blokkeren, alleen waarschuwen
       }
       else {
+        // Reset de waarschuwing als geen van de condities wordt geraakt
         setPriceWarning('');
         setIsSubmissionBlocked(false);
       }
@@ -533,6 +529,7 @@ function App() {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    // ========== WIJZIGING 3: Controleer of een eenheid is geselecteerd ==========
     if (Object.keys(formProduct.standaardEenheid).length === 0) {
       alert("Selecteer een eenheid voor het product.");
       return;
@@ -541,32 +538,16 @@ function App() {
     const cleanNaam = formProduct.naam.trim().toLowerCase();
     const finalMerk = formProduct.merk.trim() === '' ? 'n.v.t.' : formProduct.merk;
     const cleanMerk = finalMerk.toLowerCase();
-    const newUnitKey = Object.keys(formProduct.standaardEenheid)[0];
 
-    // ========== WIJZIGING: Strikte controle op duplicaten ==========
-    const isDuplicate = products.some(p =>
-      p.naam.trim().toLowerCase() === cleanNaam &&
-      p.merk.trim().toLowerCase() === cleanMerk &&
-      Object.keys(p.standaardEenheid)[0] === newUnitKey
-    );
-
-    if (isDuplicate) {
-      alert("Een product met deze exacte naam, merk en eenheid bestaat al. Toevoegen is niet toegestaan.");
-      return; // Blokkeer de toevoeging
-    }
-
-    // De bestaande similarity check met confirm blijft behouden voor niet-exacte matches
     if (products.some(p => p.naam.trim().toLowerCase() === cleanNaam && p.merk.trim().toLowerCase() === cleanMerk)) {
-      if (!window.confirm("Dit product met dit merk (maar een andere eenheid) bestaat al. Toch toevoegen?")) return;
+      if (!window.confirm("Dit product met dit merk bestaat al. Toch toevoegen?")) return;
     }
 
     setIsSubmitting(true);
     try {
       await backend.addProduct(formProduct.naam, finalMerk, ['n.v.t.'], formProduct.standaardEenheid);
       alert("Product toegevoegd!");
-      // ========== WIJZIGING: Reset ook de zoekterm ==========
       setFormProduct({ naam: '', merk: '', standaardEenheid: {} as Eenheid });
-      setProductSearchTerm('');
       fetchAllData();
     } catch (error) {
       alert("Fout bij toevoegen product.");
@@ -744,8 +725,8 @@ function App() {
   }, [winkels, storeFilterSearchTerm]);
 
   const filteredAndSelectedWinkels = useMemo(() => {
-    const baseList = selectedStoreIds.size > 0
-      ? winkels.filter(w => selectedStoreIds.has(w.id))
+    const baseList = selectedStoreIds.size > 0 
+      ? winkels.filter(w => selectedStoreIds.has(w.id)) 
       : winkels;
 
     const lowerCaseSearchTerms = winkelSearchTerm.toLowerCase().split(' ').filter(Boolean);
@@ -912,29 +893,20 @@ function App() {
 
         <CollapsibleSection title="Beheer: Producten">
           <form onSubmit={handleAddProduct} className="form-grid">
-            {/* ========== WIJZIGING: Synchroniseer input met zoekterm ========== */}
-            <input
-              type="text"
-              placeholder="Naam product"
-              value={formProduct.naam}
-              onChange={e => {
-                setFormProduct({ ...formProduct, naam: e.target.value });
-                setProductSearchTerm(e.target.value);
-              }}
-              required
-              maxLength={100}
-            />
+            <input type="text" placeholder="Naam product" value={formProduct.naam} onChange={e => setFormProduct({ ...formProduct, naam: e.target.value })} required maxLength={100} />
             <input type="text" placeholder="Merk (optioneel)" value={formProduct.merk} onChange={e => setFormProduct({ ...formProduct, merk: e.target.value })} maxLength={100} />
-            <select
-              value={Object.keys(formProduct.standaardEenheid)[0] || ''}
+            {/* ========== WIJZIGING 4: Dropdown aangepast voor lege/suggestie state ========== */}
+            <select 
+              value={Object.keys(formProduct.standaardEenheid)[0] || ''} 
               onChange={e => {
+                // Verwijder suggestie-stijl bij handmatige wijziging
                 if (suggestedFields.has('standaardEenheid')) {
                   const newSuggestions = new Set(suggestedFields);
                   newSuggestions.delete('standaardEenheid');
                   setSuggestedFields(newSuggestions);
                 }
                 setFormProduct({ ...formProduct, standaardEenheid: { [e.target.value as typeof eenheidOptions[number]]: null } as Eenheid })
-              }}
+              }} 
               required
               className={suggestedFields.has('standaardEenheid') ? 'suggested-input' : ''}
             >

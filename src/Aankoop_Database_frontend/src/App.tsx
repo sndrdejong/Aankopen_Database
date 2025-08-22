@@ -4,6 +4,7 @@ import { Aankoop_Database_backend as backend } from 'declarations/Aankoop_Databa
 import { Aankoop, BestePrijsInfo, Eenheid, Land, Product, Winkel, AllBestPricesResult } from 'declarations/Aankoop_Database_backend/Aankoop_Database_backend.did';
 import './App.css';
 import DashboardStats from './DashboardStats';
+import Dashboard from './Dashboard';
 
 // Helper component for collapsible sections
 const CollapsibleSection = ({ title, children, startOpen = false }: { title: string, children: React.ReactNode, startOpen?: boolean }) => {
@@ -19,16 +20,16 @@ const CollapsibleSection = ({ title, children, startOpen = false }: { title: str
   );
 };
 
-// Type definition for the extended purchase object, which includes product and store names
+// Type definition for the extended purchase object
 type AankoopExtended = [Aankoop, string, string];
 
-// New type to store best prices per country for a single product ID
+// Type to store best prices per country for a single product ID
 type BestPriceByCountry = {
   NL?: BestePrijsInfo;
   ES?: BestePrijsInfo;
 };
 
-// Define possible Eenheid options for the dropdown menu
+// Define Eenheid options for the dropdown menu
 const eenheidOptions = [
   'STUK', 'METER', 'KILOGRAM', 'GRAM', 'LITER', 'MILLILITER', 'ROL', 'TABLET'
 ] as const;
@@ -45,9 +46,9 @@ const eenheidIcons: Record<typeof eenheidOptions[number], string> = {
   TABLET: '🧼',
 };
 
-// Helper function to format units with an optional icon
+// Helper function to format units
 const formatEenheid = (eenheid?: object, withIcon = true): string => {
-  if (!eenheid || Object.keys(eenheid).length === 0) return ''; // Aangepast om lege objecten te negeren
+  if (!eenheid || Object.keys(eenheid).length === 0) return '';
   const key = Object.keys(eenheid)[0] as typeof eenheidOptions[number];
   if (!key) return '';
 
@@ -108,7 +109,6 @@ const PriceFinderTable = ({
       .sort((a, b) => a.naam.localeCompare(b.naam));
   }, [products, bestPrices, countryCode, winkels, selectedStoreIds]);
 
-  // Enhanced search logic: searches across all visible columns
   const finalFilteredProducts = useMemo(() => {
     const lowerCaseSearchTerms = searchTerm.toLowerCase().split(' ').filter(Boolean);
     if (lowerCaseSearchTerms.length === 0) return displayableProducts;
@@ -122,7 +122,7 @@ const PriceFinderTable = ({
         p.merk,
         bestPriceInCountry.winkelNaam,
         `€${bestPriceInCountry.eenheidsprijs.toFixed(2)}`,
-        formatEenheid(bestPriceInCountry.eenheid, false) // Also search on unit text
+        formatEenheid(bestPriceInCountry.eenheid, false)
       ].join(' ').toLowerCase();
 
       return lowerCaseSearchTerms.every(term => searchableText.includes(term));
@@ -154,7 +154,7 @@ const PriceFinderTable = ({
           placeholder="Zoek op product, merk, winkel of prijs..."
           value={searchTerm}
           onChange={e => setSearchTerm(e.target.value)}
-          maxLength={100} // Request 5: Max length
+          maxLength={100}
         />
         <button onClick={() => setSearchTerm('')} className="button-secondary">Reset</button>
       </div>
@@ -174,7 +174,7 @@ const PriceFinderTable = ({
             const selectionId = `${p.id}-${countryCode}`;
             const isSelected = selectedProducts.has(selectionId);
 
-            if (!bestPriceInCountry) return null; // Should not happen due to filter
+            if (!bestPriceInCountry) return null;
 
             return (
               <tr key={Number(p.id)} className={isSelected ? 'selected-row' : ''}>
@@ -204,32 +204,26 @@ const PriceFinderTable = ({
   );
 };
 
-// ==================================================================
-// CONSTANTEN VOOR PRIJSVALIDATIE
-// ==================================================================
-const DEVIATION_WARNING_THRESHOLD = 50;  // 50% afwijking voor een waarschuwing
-const DEVIATION_BLOCK_THRESHOLD = 200; // 200% afwijking voor een blokkade
-const MIN_PURCHASES_FOR_AVERAGE = 2;   // Minimaal 2 aankopen voor een betrouwbaar gemiddelde
+const DEVIATION_WARNING_THRESHOLD = 50;
+const DEVIATION_BLOCK_THRESHOLD = 200;
+const MIN_PURCHASES_FOR_AVERAGE = 2;
 
 const ABSOLUTE_PRICE_THRESHOLDS: Record<string, number> = {
-  KILOGRAM: 100, // €100 per kg
-  LITER: 80,     // €80 per liter
-  STUK: 50,      // €50 per stuk
-  METER: 50,     // €50 per meter
-  ROL: 25,       // €25 per rol
-  TABLET: 25,    // €25 per tablet
+  KILOGRAM: 100,
+  LITER: 80,
+  STUK: 50,
+  METER: 50,
+  ROL: 25,
+  TABLET: 25,
 };
 
-// ==================================================================
-// NIEUWE CONSTANT: ABSOLUTE MINIMUM PRIJZEN
-// ==================================================================
 const ABSOLUTE_MIN_PRICE_THRESHOLDS: Record<string, number> = {
-  KILOGRAM: 0.10, // €0,10 per kg
-  LITER: 0.10,    // €0,10 per liter
-  STUK: 0.05,     // €0,05 per stuk
-  METER: 0.10,    // €0,10 per meter
-  ROL: 0.10,      // €0,10 per rol
-  TABLET: 0.05,   // €0,05 per tablet
+  KILOGRAM: 0.10,
+  LITER: 0.10,
+  STUK: 0.05,
+  METER: 0.10,
+  ROL: 0.10,
+  TABLET: 0.05,
 };
 
 function App() {
@@ -269,7 +263,6 @@ function App() {
   const [editingProductData, setEditingProductData] = useState<Omit<Product, 'id' | 'trefwoorden'> & { trefwoorden: string }>({ naam: '', merk: '', trefwoorden: '', standaardEenheid: { STUK: null } });
 
   const [productWarning, setProductWarning] = useState<string>('');
-
   const [priceWarning, setPriceWarning] = useState<string>('');
   const [isSubmissionBlocked, setIsSubmissionBlocked] = useState<boolean>(false);
 
@@ -287,7 +280,6 @@ function App() {
       setBestPrices(newBestPrices);
     } catch (error) {
       console.error("Error fetching best prices:", error);
-      // ========== WIJZIGING: Vertaling van alert ==========
       alert("Er is iets misgegaan bij het berekenen van de prijzen.");
     } finally {
       setIsLoadingPrices(false);
@@ -326,9 +318,7 @@ function App() {
       }
       for (const p of products) {
         const existingName = p.naam.trim().toLowerCase();
-        // Check for similarity but exclude exact matches, as they are handled elsewhere
         if ((existingName.includes(cleanNaam) || cleanNaam.includes(existingName)) && existingName !== cleanNaam) {
-          // ========== WIJZIGING: Vertaling van waarschuwing ==========
           setProductWarning(`⚠️ Dit product lijkt sterk op "${p.naam}". Controleer bestaande producten voordat je het toevoegt.`);
           return;
         }
@@ -338,15 +328,12 @@ function App() {
     checkProductExistence();
   }, [formProduct.naam, products]);
 
-  // ========== WIJZIGING: Verbeterde useEffect om eenheid voor te stellen ==========
   useEffect(() => {
     const suggestEenheid = () => {
       const inputNaam = formProduct.naam.trim().toLowerCase();
 
-      // Reset suggestion if input is cleared
       if (inputNaam.length < 3) {
         if (suggestedFields.has('standaardEenheid')) {
-          // FIX: Added 'as Eenheid' to match the expected type.
           setFormProduct(prev => ({ ...prev, standaardEenheid: {} as Eenheid }));
           const newSuggestions = new Set(suggestedFields);
           newSuggestions.delete('standaardEenheid');
@@ -355,7 +342,6 @@ function App() {
         return;
       }
 
-      // Only suggest if a unit hasn't been chosen yet
       if (Object.keys(formProduct.standaardEenheid).length > 0) {
         return;
       }
@@ -401,9 +387,6 @@ function App() {
     findLastPurchase();
   }, [formAankoop.productId, formAankoop.winkelId, aankopen]);
 
-  // ==================================================================
-  // USEEFFECT VOOR DE VOLLEDIGE PRIJSVALIDATIE LOGICA (BIJGEWERKT)
-  // ==================================================================
   useEffect(() => {
     const { productId, prijs, hoeveelheid } = formAankoop;
     const priceNum = parseFloat(prijs);
@@ -470,9 +453,7 @@ function App() {
         setIsSubmissionBlocked(false);
       }
     }
-
   }, [formAankoop.productId, formAankoop.prijs, formAankoop.hoeveelheid, aankopen, products]);
-
 
   const handleAddWinkel = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -543,7 +524,6 @@ function App() {
     const cleanMerk = finalMerk.toLowerCase();
     const newUnitKey = Object.keys(formProduct.standaardEenheid)[0];
 
-    // ========== WIJZIGING: Strikte controle op duplicaten ==========
     const isDuplicate = products.some(p =>
       p.naam.trim().toLowerCase() === cleanNaam &&
       p.merk.trim().toLowerCase() === cleanMerk &&
@@ -552,10 +532,9 @@ function App() {
 
     if (isDuplicate) {
       alert("Een product met deze exacte naam, merk en eenheid bestaat al. Toevoegen is niet toegestaan.");
-      return; // Blokkeer de toevoeging
+      return;
     }
 
-    // De bestaande similarity check met confirm blijft behouden voor niet-exacte matches
     if (products.some(p => p.naam.trim().toLowerCase() === cleanNaam && p.merk.trim().toLowerCase() === cleanMerk)) {
       if (!window.confirm("Dit product met dit merk (maar een andere eenheid) bestaat al. Toch toevoegen?")) return;
     }
@@ -564,7 +543,6 @@ function App() {
     try {
       await backend.addProduct(formProduct.naam, finalMerk, ['n.v.t.'], formProduct.standaardEenheid);
       alert("Product toegevoegd!");
-      // ========== WIJZIGING: Reset ook de zoekterm ==========
       setFormProduct({ naam: '', merk: '', standaardEenheid: {} as Eenheid });
       setProductSearchTerm('');
       fetchAllData();
@@ -733,7 +711,6 @@ function App() {
     });
   };
 
-  // Enhanced search logic for store selection filter
   const filteredStoreSelection = useMemo(() => {
     const lowerCaseSearchTerms = storeFilterSearchTerm.toLowerCase().split(' ').filter(Boolean);
     if (lowerCaseSearchTerms.length === 0) return winkels;
@@ -757,8 +734,6 @@ function App() {
     });
   }, [winkels, selectedStoreIds, winkelSearchTerm]);
 
-
-  // Enhanced search logic for products
   const filteredProducts = useMemo(() => {
     const lowerCaseSearchTerms = productSearchTerm.toLowerCase().split(' ').filter(Boolean);
     if (lowerCaseSearchTerms.length === 0) return products;
@@ -773,7 +748,6 @@ function App() {
     return aankopen.filter(([aankoop]) => selectedStoreIds.has(aankoop.winkelId));
   }, [aankopen, selectedStoreIds]);
 
-  // Enhanced search logic for purchase history
   const searchedAankopen = useMemo(() => {
     const lowerCaseSearchTerms = aankoopSearchTerm.toLowerCase().split(' ').filter(Boolean);
     if (lowerCaseSearchTerms.length === 0) return filteredAankopenByStore;
@@ -912,7 +886,6 @@ function App() {
 
         <CollapsibleSection title="Beheer: Producten">
           <form onSubmit={handleAddProduct} className="form-grid">
-            {/* ========== WIJZIGING: Synchroniseer input met zoekterm ========== */}
             <input
               type="text"
               placeholder="Naam product"
@@ -1110,6 +1083,15 @@ function App() {
             </table>
           </div>
         </CollapsibleSection>
+
+        <CollapsibleSection title="Dashboard" startOpen={true}>
+          <Dashboard
+            aankopen={aankopen}
+            products={products}
+            winkels={winkels}
+          />
+        </CollapsibleSection>
+
       </main>
     </div>
   );

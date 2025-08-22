@@ -59,7 +59,6 @@ main>* {
   box-shadow: var(--box-shadow);
 }
 
-/* WIJZIGING: Zorgt ervoor dat h2-koppen in een 'card' dezelfde grootte hebben als de section-headers */
 .card h2 {
   font-size: 1.2rem;
   font-weight: 600;
@@ -189,7 +188,6 @@ button:disabled {
   }
 }
 
-/* Suggested input styling (existing, but included for completeness) */
 .suggested-input {
   background-color: #e8f5e8 !important;
   border-color: #28a745 !important;
@@ -365,53 +363,42 @@ tbody tr:hover {
     margin-right: 1rem;
   }
 
-  /* --- Extra mobiele optimalisaties voor witruimte --- */
-
-  /* Verminder de ruimte rond de hele app */
   .app-container {
     padding: 0.75rem;
   }
 
-  /* Maak de hoofdtitel iets compacter */
   .app-header {
     padding: 1rem;
     margin-bottom: 1.5rem;
     border-radius: var(--border-radius);
-    /* Behoud de radius voor consistentie */
   }
 
   .app-header h1 {
     font-size: 1.4rem;
   }
 
-  /* Verminder de verticale ruimte tussen de hoofdsecties */
   main>* {
     margin-bottom: 1.5rem;
   }
 
-  /* Maak de inklapbare secties en kaarten compacter */
   .collapsible-header,
   .card {
     padding: 1rem;
   }
 
-  /* Pas ook de content-padding aan */
   .collapsible-content {
     padding: 0 1rem 1rem 1rem;
   }
 
-  /* Maak de titels van secties en kaarten iets kleiner */
   .collapsible-header,
   .card h2 {
     font-size: 1.1rem;
   }
 
-  /* Verminder de padding in tabelcellen voor meer data per regel */
   td {
     padding: 0.6rem 0.9rem;
   }
 
-  /* Maak de ruimte tussen de 'card'-rijen in de mobiele tabel iets kleiner */
   tr {
     margin-bottom: 0.8rem;
   }
@@ -469,6 +456,7 @@ tbody tr:hover {
     text-align: center;
 }
 
+/* --- DashboardStats Styling --- */
 .dashboard-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -502,7 +490,6 @@ tbody tr:hover {
   margin-top: 0.25rem;
 }
 
-/* Responsive aanpassingen voor kleinere schermen */
 @media (max-width: 767px) {
   .dashboard-stats {
     grid-template-columns: 1fr 1fr;
@@ -520,4 +507,60 @@ tbody tr:hover {
   .stat-label {
     font-size: 0.8rem;
   }
+}
+
+/* --- Dashboard Styling --- */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 1.5rem;
+}
+
+.dashboard-widget {
+  background-color: #fdfdfd;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 1.2rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+
+.dashboard-widget h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.dashboard-widget h5 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.widget-subsection {
+    margin-bottom: 1rem;
+}
+
+.widget-subsection:last-child {
+    margin-bottom: 0;
+}
+
+.table-container-widget {
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.table-container-widget table {
+  margin-top: 0;
+}
+
+.price-increase {
+  color: #c0392b; /* Rood */
+  font-weight: 600;
+}
+
+.price-decrease {
+  color: #27ae60; /* Groen */
+  font-weight: 600;
 }

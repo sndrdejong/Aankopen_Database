@@ -35,7 +35,7 @@ const eenheidOptions = [
 
 // NIEUW: Icon mapping voor eenheden
 const eenheidIcons: Record<typeof eenheidOptions[number], string> = {
-  STUK: '📦🍾',
+  STUK: '📦',
   METER: '📏',
   KILOGRAM: '⚖️',
   GRAM: '⚖️',
@@ -109,7 +109,7 @@ const PriceFinderTable = ({
         // Vereiste 2: Verberg product als de winkel van de beste prijs is uitgefilterd.
         const winkelOfBestPrice = winkels.find(w => w.naam === bestPriceInCountry.winkelNaam && Object.keys(w.land)[0] === countryCode);
         const isStoreVisible = selectedStoreIds.size === 0 || (winkelOfBestPrice && selectedStoreIds.has(winkelOfBestPrice.id));
-        
+
         return isStoreVisible;
       })
       .sort((a, b) => a.naam.localeCompare(b.naam));
@@ -125,7 +125,7 @@ const PriceFinderTable = ({
       p.merk.toLowerCase().includes(lowerCaseSearchTerm)
     );
   }, [displayableProducts, searchTerm]);
-  
+
   // WIJZIGING: Functie om prijs te converteren en formatteren
   const formatAndConvertPrice = (priceInfo: BestePrijsInfo): string => {
     const unitKey = Object.keys(priceInfo.eenheid)[0];
@@ -133,15 +133,17 @@ const PriceFinderTable = ({
 
     if (unitKey === 'GRAM') {
       const pricePerKg = originalPrice * 1000;
-      return `€${pricePerKg.toFixed(2)} per kg`;
+      // OPLOSSING: Voeg hier het icoon handmatig toe
+      return `${eenheidIcons['GRAM']} €${pricePerKg.toFixed(2)} per kg`;
     }
 
     if (unitKey === 'MILLILITER') {
       const pricePerLiter = originalPrice * 1000;
-      return `€${pricePerLiter.toFixed(2)} per liter`;
+      // OPLOSSING: Voeg hier het icoon handmatig toe
+      return `${eenheidIcons['MILLILITER']} €${pricePerLiter.toFixed(2)} per liter`;
     }
-    
-    // Fallback voor alle andere eenheden
+
+    // Fallback voor alle andere eenheden (deze werkte al correct)
     return `€${originalPrice.toFixed(2)} ${formatEenheid(priceInfo.eenheid)}`;
   };
 
@@ -174,7 +176,7 @@ const PriceFinderTable = ({
             const isSelected = selectedProducts.has(selectionId);
 
             // We kunnen ervan uitgaan dat bestPriceInCountry bestaat door de filter in displayableProducts
-            if (!bestPriceInCountry) return null; 
+            if (!bestPriceInCountry) return null;
 
             return (
               <tr key={Number(p.id)} className={isSelected ? 'selected-row' : ''}>
@@ -434,8 +436,8 @@ function App() {
     const cleanMerk = finalMerk.toLowerCase();
 
     const isExactDuplicate = products.some(product =>
-        product.naam.trim().toLowerCase() === cleanNaam &&
-        product.merk.trim().toLowerCase() === cleanMerk
+      product.naam.trim().toLowerCase() === cleanNaam &&
+      product.merk.trim().toLowerCase() === cleanMerk
     );
 
     if (isExactDuplicate) {
@@ -443,7 +445,7 @@ function App() {
         return;
       }
     }
-    
+
     setIsSubmitting(true);
     try {
       const { naam, merk, standaardEenheid } = formProduct;
@@ -678,19 +680,19 @@ function App() {
       return selectedStoreIds.has(aankoop.winkelId);
     });
   }, [aankopen, selectedStoreIds]);
-  
+
   // WIJZIGING: Voegt een extra filterstap toe voor de zoekbalk in aankoopgeschiedenis
   const searchedAankopen = useMemo(() => {
     const searchTerm = aankoopSearchTerm.toLowerCase();
     if (!searchTerm) {
-        return filteredAankopen;
+      return filteredAankopen;
     }
-    return filteredAankopen.filter(([, prodNaam, winkelNaam]) => 
-        prodNaam.toLowerCase().includes(searchTerm) || 
-        winkelNaam.toLowerCase().includes(searchTerm)
+    return filteredAankopen.filter(([, prodNaam, winkelNaam]) =>
+      prodNaam.toLowerCase().includes(searchTerm) ||
+      winkelNaam.toLowerCase().includes(searchTerm)
     );
   }, [filteredAankopen, aankoopSearchTerm]);
-  
+
   // WIJZIGING: Maak een gefilterde lijst van winkels voor het "Nieuwe aankoop" formulier.
   const filteredWinkelsForPurchaseForm = useMemo(() => {
     if (selectedStoreIds.size === 0) {
@@ -862,7 +864,7 @@ function App() {
 
             {/* WIJZIGING: Gebruik van de nieuwe state voor de waarschuwing */}
             {productWarning && (
-                <p className="warning">{productWarning}</p>
+              <p className="warning">{productWarning}</p>
             )}
 
             <div className="product-preview">
@@ -1114,7 +1116,7 @@ function App() {
         </section>
 
         <CollapsibleSection title="Aankopen Historie">
-           {/* WIJZIGING: Zoekbalk toegevoegd */}
+          {/* WIJZIGING: Zoekbalk toegevoegd */}
           <div className="filter-controls">
             <input
               type="text"

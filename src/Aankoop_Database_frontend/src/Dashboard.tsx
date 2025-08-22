@@ -1,12 +1,10 @@
 // src/Dashboard.tsx
 
-import React from 'react';
+import React, { useState, ReactNode } from 'react';
 import { Aankoop, Product, Winkel } from 'declarations/Aankoop_Database_backend/Aankoop_Database_backend.did';
 
 import WinkelPrijsVergelijking from './WinkelPrijsVergelijking';
 import PrijsOntwikkeling from './PrijsOntwikkeling';
-import TopProducten from './TopProducten';
-import UitgavenPerWinkel from './UitgavenPerWinkel';
 
 type AankoopExtended = [Aankoop, string, string];
 
@@ -16,6 +14,25 @@ interface DashboardProps {
   winkels: Winkel[];
 }
 
+// Helper component to make each dashboard widget collapsible
+const CollapsibleDashboardWidget = ({ title, children }: { title: string, children: ReactNode }) => {
+  const [isOpen, setIsOpen] = useState(true); // Widgets are open by default
+
+  return (
+    <div className="dashboard-widget">
+      <div 
+        onClick={() => setIsOpen(!isOpen)} 
+        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+      >
+        <span className="collapsible-icon" style={{color: '#6B8E23'}}>{isOpen ? '➖' : '➕'}</span>
+        <h4>{title}</h4>
+      </div>
+      {isOpen && children}
+    </div>
+  );
+};
+
+
 const Dashboard: React.FC<DashboardProps> = ({ aankopen, products, winkels }) => {
   if (aankopen.length === 0) {
     return <p>Voeg eerst enkele aankopen toe om het dashboard te kunnen zien.</p>;
@@ -23,10 +40,13 @@ const Dashboard: React.FC<DashboardProps> = ({ aankopen, products, winkels }) =>
 
   return (
     <div className="dashboard-grid">
-      <PrijsOntwikkeling aankopen={aankopen} products={products} />
-      <UitgavenPerWinkel aankopen={aankopen} winkels={winkels} />
-      <TopProducten aankopen={aankopen} products={products} />
-      <WinkelPrijsVergelijking aankopen={aankopen} products={products} winkels={winkels} />
+      <CollapsibleDashboardWidget title="Prijsontwikkeling Producten per Winkel">
+        <PrijsOntwikkeling aankopen={aankopen} products={products} winkels={winkels} />
+      </CollapsibleDashboardWidget>
+      
+      <CollapsibleDashboardWidget title="Goedkoopste Winkels per Product">
+        <WinkelPrijsVergelijking aankopen={aankopen} products={products} winkels={winkels} />
+      </CollapsibleDashboardWidget>
     </div>
   );
 };

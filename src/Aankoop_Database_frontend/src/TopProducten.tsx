@@ -31,7 +31,7 @@ const TopProducten: React.FC<Props> = ({ aankopen, products }) => {
         product: products.find(p => p.id === productId),
         totaal,
       }))
-      .filter(item => item.product) // Verwijder items zonder productinfo
+      .filter(item => item.product)
       .sort((a, b) => b.totaal - a.totaal);
 
     return {
@@ -41,8 +41,7 @@ const TopProducten: React.FC<Props> = ({ aankopen, products }) => {
   }, [aankopen, products]);
 
   return (
-    <div className="dashboard-widget">
-      <h4>Meest Gekochte Producten (op hoeveelheid)</h4>
+    <>
       <div className="table-container-widget">
         <table>
           <thead>
@@ -85,7 +84,7 @@ const TopProducten: React.FC<Props> = ({ aankopen, products }) => {
           </tbody>
         </table>
       </div>
-    </div>
+    </>
   );
 };
 

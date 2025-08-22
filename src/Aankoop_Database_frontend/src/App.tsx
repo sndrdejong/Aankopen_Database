@@ -1084,7 +1084,7 @@ function App() {
           </div>
         </CollapsibleSection>
 
-        <CollapsibleSection title="Dashboard" startOpen={true}>
+        <CollapsibleSection title="Dashboard">
           <Dashboard
             aankopen={aankopen}
             products={products}

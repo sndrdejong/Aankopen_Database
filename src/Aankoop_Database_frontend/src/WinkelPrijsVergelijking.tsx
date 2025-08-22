@@ -1,6 +1,6 @@
 // src/WinkelPrijsVergelijking.tsx
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Aankoop, Product, Winkel } from 'declarations/Aankoop_Database_backend/Aankoop_Database_backend.did';
 
 type AankoopExtended = [Aankoop, string, string];
@@ -12,11 +12,11 @@ interface Props {
 }
 
 const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+
   const prijsVergelijkingData = useMemo(() => {
     const dataByProduct = new Map<bigint, any[]>();
-
-    // 1. Vind de meest recente aankoop per winkel voor elk product
-    const laatsteAankopen = new Map<string, Aankoop>(); // Key: "productId-winkelId"
+    const laatsteAankopen = new Map<string, Aankoop>();
     aankopen.forEach(([a]) => {
       const key = `${a.productId}-${a.winkelId}`;
       const bestaande = laatsteAankopen.get(key);
@@ -25,7 +25,6 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels 
       }
     });
 
-    // 2. Organiseer per product en bereken de eenheidsprijs
     laatsteAankopen.forEach((aankoop) => {
       const product = products.find(p => p.id === aankoop.productId);
       const winkel = winkels.find(w => w.id === aankoop.winkelId);
@@ -35,6 +34,8 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels 
       
       const entry = {
         winkelNaam: winkel.naam,
+        land: Object.keys(winkel.land)[0],
+        keten: winkel.keten,
         eenheidsprijs,
         datum: new Date(Number(aankoop.datum) / 1_000_000),
       };
@@ -45,25 +46,46 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels 
       dataByProduct.get(product.id)?.push(entry);
     });
 
-    // 3. Sorteer winkels per product op prijs
-    dataByProduct.forEach((winkelData, productId) => {
+    dataByProduct.forEach((winkelData) => {
       winkelData.sort((a, b) => a.eenheidsprijs - b.eenheidsprijs);
-       // Limiteer tot de top 5 goedkoopste
-      dataByProduct.set(productId, winkelData.slice(0, 5));
     });
 
     return dataByProduct;
   }, [aankopen, products, winkels]);
+  
+  const filteredAndSortedProducts = useMemo(() => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    
+    return Array.from(prijsVergelijkingData.entries())
+      .map(([productId, winkelData]) => ({
+        productId,
+        product: products.find(p => p.id === productId),
+        winkelData
+      }))
+      .filter(({ product, winkelData }) => {
+        if (!product || winkelData.length < 2) return false;
+        
+        const searchableText = `${product.naam} ${product.merk}`.toLowerCase();
+        return searchableText.includes(lowerCaseSearchTerm);
+      })
+      .sort((a, b) => a.product!.naam.localeCompare(b.product!.naam));
+  }, [prijsVergelijkingData, searchTerm, products]);
+
 
   if (prijsVergelijkingData.size === 0) return null;
 
   return (
-    <div className="dashboard-widget">
-      <h4>Goedkoopste Winkels (per product, laatste prijs)</h4>
-      {Array.from(prijsVergelijkingData.entries()).map(([productId, winkelData]) => {
-        const product = products.find(p => p.id === productId);
-        if (winkelData.length < 2) return null; // Toon alleen als er iets te vergelijken is
-        return (
+    <>
+      <div className="filter-controls" style={{ marginBottom: '1rem' }}>
+          <input
+              type="text"
+              placeholder="Zoek op productnaam of merk..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+          />
+      </div>
+
+      {filteredAndSortedProducts.map(({ productId, product, winkelData }) => (
           <div key={String(productId)} className="widget-subsection">
             <h5>{product?.naam} ({product?.merk})</h5>
             <div className="table-container-widget">
@@ -71,14 +93,18 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels 
                 <thead>
                   <tr>
                     <th>Winkel</th>
+                    <th>Keten</th>
+                    <th>Land</th>
                     <th>Eenheidsprijs</th>
                     <th>Datum</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {winkelData.map((data, index) => (
+                  {winkelData.slice(0, 5).map((data, index) => (
                     <tr key={index}>
                       <td>{data.winkelNaam}</td>
+                      <td>{data.keten}</td>
+                      <td>{data.land}</td>
                       <td>€{data.eenheidsprijs.toFixed(2)}</td>
                       <td>{data.datum.toLocaleDateString()}</td>
                     </tr>
@@ -87,9 +113,9 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels 
               </table>
             </div>
           </div>
-        );
-      })}
-    </div>
+        )
+      )}
+    </>
   );
 };
 

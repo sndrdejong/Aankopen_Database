@@ -7,13 +7,9 @@ import Time "mo:base/Time";
 import Iter "mo:base/Iter";
 import Debug "mo:base/Debug";
 import Buffer "mo:base/Buffer";
-import Principal "mo:base/Principal"; // <-- 1. Import Principal module
 
 persistent actor BoodschappenDB {
 
-  // ==========================================================
-  // TYPE DEFINITIES (ongewijzigd)
-  // ==========================================================
   public type Land = { #NL; #ES };
   public type Eenheid = {
     #STUK; #METER; #KILOGRAM; #GRAM;
@@ -44,21 +40,16 @@ persistent actor BoodschappenDB {
     eenheidsprijs : Float;
     eenheid : Eenheid;
   };
+  
+  // ==========================================================
+  // NIEUW TYPE VOOR DE findAllBestPrices FUNCTIE
+  // ==========================================================
   public type AllBestPricesResult = {
     productId: Nat;
     nl: ?BestePrijsInfo;
     es: ?BestePrijsInfo;
   };
-
-  // ==========================================================
-  // BEVEILIGING: GEDEFINIEERDE PRINCIPALS
-  // ==========================================================
-  private let frontendCanisterId : Text = "gndzg-rqaaa-aaaai-q32xa-cai";
-  private let developerPrincipalId : Text = "2vxsx-fae";
   
-  // ==========================================================
-  // STATE VARIABELEN (ongewijzigd)
-  // ==========================================================
   var winkelsData : [(Nat, Winkel)] = [];
   var productenData : [(Nat, Product)] = [];
   var aankopenData : [(Nat, Aankoop)] = [];
@@ -70,22 +61,6 @@ persistent actor BoodschappenDB {
   var producten = Map.new<Nat, Product>();
   var aankopen = Map.new<Nat, Aankoop>();
 
-  // ==========================================================
-  // BEVEILIGING: GUARD FUNCTIE (GECORRIGEERD)
-  // ==========================================================
-  private func authorizeCaller(caller : Principal) {
-    let frontendPrincipal = Principal.fromText(frontendCanisterId);
-    let developerPrincipal = Principal.fromText(developerPrincipalId);
-
-    // Sta alleen aanroepen toe van de frontend canister of de ontwikkelaar.
-    if (caller != frontendPrincipal and caller != developerPrincipal) {
-      Debug.trap("Unauthorized: Caller is not authorized to perform this action.");
-    };
-  };
-
-  // ==========================================================
-  // UPGRADE HOOKS (ongewijzigd)
-  // ==========================================================
   system func preupgrade() {
     winkelsData := Map.toArray(winkels);
     productenData := Map.toArray(producten);
@@ -106,11 +81,7 @@ persistent actor BoodschappenDB {
     aankopenData := [];
   };
 
-  // ==========================================================
-  // BEVEILIGDE UPDATE FUNCTIES (GECORRIGEERD)
-  // ==========================================================
-  public shared (msg) func addWinkel(naam : Text, keten : Text, land : Land) : async Nat {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+  public shared (_) func addWinkel(naam : Text, keten : Text, land : Land) : async Nat {
     let id = nextWinkelId;
     let newWinkel : Winkel = { id; naam; keten; land; };
     Map.set(winkels, Map.nhash, id, newWinkel);
@@ -118,8 +89,7 @@ persistent actor BoodschappenDB {
     return id;
   };
 
-  public shared (msg) func addProduct(naam : Text, merk : Text, trefwoorden : [Text], standaardEenheid : Eenheid) : async Nat {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+  public shared (_) func addProduct(naam : Text, merk : Text, trefwoorden : [Text], standaardEenheid : Eenheid) : async Nat {
     let id = nextProductId;
     let newProduct : Product = { id; naam; merk; trefwoorden; standaardEenheid };
     Map.set(producten, Map.nhash, id, newProduct);
@@ -127,14 +97,13 @@ persistent actor BoodschappenDB {
     return id;
   };
 
-  public shared (msg) func addAankoop(
+  public shared (_) func addAankoop(
     productId : Nat,
     winkelId : Nat,
     bonOmschrijving : Text,
     prijs : Float,
     hoeveelheid : Float,
   ) : async Nat {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
     if (Map.get(producten, Map.nhash, productId) == null) {
       Debug.trap("Product niet gevonden");
     };
@@ -159,8 +128,7 @@ persistent actor BoodschappenDB {
     return id;
   };
 
-  public shared (msg) func deleteAankoop(id : Nat) : async Result.Result<Null, Text> {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+  public shared (_) func deleteAankoop(id : Nat) : async Result.Result<Null, Text> {
     if (Map.get(aankopen, Map.nhash, id) != null) {
       Map.delete(aankopen, Map.nhash, id);
       return #ok(null);
@@ -169,8 +137,7 @@ persistent actor BoodschappenDB {
     };
   };
   
-  public shared (msg) func updateWinkel(id : Nat, naam : Text, keten : Text, land : Land) : async Result.Result<Null, Text> {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+  public shared (_) func updateWinkel(id : Nat, naam : Text, keten : Text, land : Land) : async Result.Result<Null, Text> {
     switch (Map.get(winkels, Map.nhash, id)) {
       case (null) {
         return #err("Winkel met deze ID niet gevonden.");
@@ -183,8 +150,7 @@ persistent actor BoodschappenDB {
     };
   };
 
-  public shared (msg) func deleteWinkel(id : Nat) : async Result.Result<Null, Text> {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+  public shared (_) func deleteWinkel(id : Nat) : async Result.Result<Null, Text> {
     if (Map.get(winkels, Map.nhash, id) == null) {
       return #err("Winkel met deze ID niet gevonden.");
     };
@@ -197,8 +163,7 @@ persistent actor BoodschappenDB {
     return #ok(null);
   };
   
-  public shared (msg) func updateProduct(id : Nat, naam : Text, merk : Text, trefwoorden : [Text], standaardEenheid : Eenheid) : async Result.Result<Null, Text> {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+  public shared (_) func updateProduct(id : Nat, naam : Text, merk : Text, trefwoorden : [Text], standaardEenheid : Eenheid) : async Result.Result<Null, Text> {
     switch (Map.get(producten, Map.nhash, id)) {
       case (null) {
         return #err("Product met deze ID niet gevonden.");
@@ -211,8 +176,7 @@ persistent actor BoodschappenDB {
     };
   };
   
-  public shared (msg) func deleteProduct(id : Nat) : async Result.Result<Null, Text> {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+  public shared (_) func deleteProduct(id : Nat) : async Result.Result<Null, Text> {
     if (Map.get(producten, Map.nhash, id) == null) {
       return #err("Product met deze ID niet gevonden.");
     };
@@ -225,9 +189,6 @@ persistent actor BoodschappenDB {
     return #ok(null);
   };
   
-  // ==========================================================
-  // PRIVATE & QUERY FUNCTIES (ongewijzigd)
-  // ==========================================================
   private func berekenEenheidsprijs(aankoop : Aankoop) : ?Float {
     if (aankoop.hoeveelheid > 0) {
       return ?(aankoop.prijs / aankoop.hoeveelheid);
@@ -259,6 +220,13 @@ persistent actor BoodschappenDB {
     return Buffer.toArray(result);
   };
 
+  // ==========================================================
+  // NIEUWE FUNCTIES VOOR BESTE PRIJS BEREKENING
+  // ==========================================================
+  
+  /**
+   * Hulpfunctie die de beste prijs voor een specifiek product in een specifiek land berekent.
+   */
   private func findBestPriceForCountry(productId : Nat, land: Land) : ?BestePrijsInfo {
     var laatsteAankopenPerWinkel = Map.new<Nat, Aankoop>();
 
@@ -314,6 +282,10 @@ persistent actor BoodschappenDB {
     return besteInfo;
   };
   
+  /**
+   * Berekent de beste prijzen voor alle producten in zowel NL als ES.
+   * Dit is de functie die de frontend aanroept.
+   */
   public query func findAllBestPrices() : async [AllBestPricesResult] {
     let results = Buffer.Buffer<AllBestPricesResult>(0);
 
@@ -321,6 +293,7 @@ persistent actor BoodschappenDB {
       let nlBestInfo = findBestPriceForCountry(productId, #NL);
       let esBestInfo = findBestPriceForCountry(productId, #ES);
 
+      // Voeg alleen toe aan resultaten als er minstens één prijs gevonden is
       if (nlBestInfo != null or esBestInfo != null) {
         results.add({
           productId = productId;

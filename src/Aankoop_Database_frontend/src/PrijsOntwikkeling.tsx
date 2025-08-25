@@ -18,12 +18,15 @@ const PrijsOntwikkeling: React.FC<Props> = ({ aankopen, products, winkels, selec
   const [sortOrder, setSortOrder] = useState<SortOrder>('verandering');
 
   const prijsOntwikkelingData = useMemo(() => {
-    const filteredAankopen = selectedStoreIds.size > 0
-      ? aankopen.filter(([a]) => selectedStoreIds.has(a.winkelId))
-      : aankopen;
+    // Filter eerst op geselecteerde winkels EN op aankopen die niet gratis waren
+    const relevanteAankopen = aankopen.filter(([a]) => {
+        const storeFilterPassed = selectedStoreIds.size === 0 || selectedStoreIds.has(a.winkelId);
+        const priceFilterPassed = a.prijs > 0;
+        return storeFilterPassed && priceFilterPassed;
+    });
 
     const dataByProductAndWinkel = new Map<string, Aankoop[]>();
-    filteredAankopen.forEach(([a]) => {
+    relevanteAankopen.forEach(([a]) => {
       const key = `${a.productId}-${a.winkelId}`;
       if (!dataByProductAndWinkel.has(key)) {
         dataByProductAndWinkel.set(key, []);
@@ -50,6 +53,9 @@ const PrijsOntwikkeling: React.FC<Props> = ({ aankopen, products, winkels, selec
       if (eerstePrijs === 0) return;
       
       const verandering = ((laatstePrijs - eerstePrijs) / eerstePrijs) * 100;
+
+      // Sla producten zonder prijsverandering over
+      if (verandering === 0) return;
 
       const product = products.find(p => p.id === productId);
       const winkel = winkels.find(w => w.id === winkelId);

@@ -1,7 +1,7 @@
 // src/WinkelPrijsVergelijking.tsx
 
 import React, { useMemo, useState } from 'react';
-import { Aankoop, Product, Winkel } from 'declarations/Aankoop_Database_backend/Aankoop_Database_backend.did';
+import { Aankoop, Product, Winkel, Eenheid } from 'declarations/Aankoop_Database_backend/Aankoop_Database_backend.did';
 
 type AankoopExtended = [Aankoop, string, string];
 
@@ -11,6 +11,22 @@ interface Props {
   winkels: Winkel[];
   selectedStoreIds: Set<bigint>;
 }
+
+// Helper om eenheidsprijzen te formatteren en converteren
+const formatEenheidsprijs = (prijs: number, eenheid: Eenheid): string => {
+    const eenheidKey = Object.keys(eenheid)[0];
+    
+    if (eenheidKey === 'GRAM') {
+        return `€${(prijs * 1000).toFixed(2)} per kg`;
+    }
+    if (eenheidKey === 'MILLILITER') {
+        return `€${(prijs * 1000).toFixed(2)} per liter`;
+    }
+    
+    const eenheidText = (eenheidKey || '').toLowerCase();
+    return `€${prijs.toFixed(2)} per ${eenheidText}`;
+};
+
 
 const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels, selectedStoreIds }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,6 +38,7 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels,
 
     const dataByProduct = new Map<bigint, any[]>();
     const laatsteAankopen = new Map<string, Aankoop>();
+    
     filteredAankopen.forEach(([a]) => {
       const key = `${a.productId}-${a.winkelId}`;
       const bestaande = laatsteAankopen.get(key);
@@ -36,6 +53,7 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels,
       if (!product || !winkel) return;
 
       const eenheidsprijs = aankoop.hoeveelheid > 0 ? aankoop.prijs / aankoop.hoeveelheid : 0;
+      if (eenheidsprijs === 0) return; // Sla gratis producten over in de vergelijking
       
       const entry = {
         winkelNaam: winkel.naam,
@@ -62,11 +80,25 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels,
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     
     return Array.from(prijsVergelijkingData.entries())
-      .map(([productId, winkelData]) => ({
-        productId,
-        product: products.find(p => p.id === productId),
-        winkelData
-      }))
+      .map(([productId, winkelData]) => {
+        const product = products.find(p => p.id === productId);
+        let prijsVerschilPercentage: number | null = null;
+
+        if (winkelData.length >= 2) {
+            const goedkoopste = winkelData[0].eenheidsprijs;
+            const duurste = winkelData[winkelData.length - 1].eenheidsprijs;
+            if (duurste > 0) {
+                prijsVerschilPercentage = ((duurste - goedkoopste) / duurste) * 100;
+            }
+        }
+
+        return {
+          productId,
+          product,
+          winkelData,
+          prijsVerschilPercentage
+        }
+      })
       .filter(({ product, winkelData }) => {
         if (!product || winkelData.length < 2) return false;
         
@@ -90,9 +122,16 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels,
           />
       </div>
 
-      {filteredAndSortedProducts.map(({ productId, product, winkelData }) => (
+      {filteredAndSortedProducts.map(({ productId, product, winkelData, prijsVerschilPercentage }) => (
           <div key={String(productId)} className="widget-subsection">
-            <h5>{product?.naam} ({product?.merk})</h5>
+            <h5>
+                {product?.naam} ({product?.merk})
+                {prijsVerschilPercentage !== null && prijsVerschilPercentage > 0 && (
+                    <span className="price-decrease" style={{ marginLeft: '0.5rem', fontSize: '0.8em' }}>
+                        {prijsVerschilPercentage.toFixed(0)}% goedkoper
+                    </span>
+                )}
+            </h5>
             <div className="table-container-widget">
               <table>
                 <thead>
@@ -110,7 +149,7 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels,
                       <td>{data.winkelNaam}</td>
                       <td>{data.keten}</td>
                       <td>{data.land}</td>
-                      <td>€{data.eenheidsprijs.toFixed(2)}</td>
+                      <td>{product ? formatEenheidsprijs(data.eenheidsprijs, product.standaardEenheid) : '-'}</td>
                       <td>{data.datum.toLocaleDateString()}</td>
                     </tr>
                   ))}

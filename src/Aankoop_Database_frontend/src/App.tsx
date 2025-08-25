@@ -7,6 +7,44 @@ import { Aankoop, BestePrijsInfo, Eenheid, Land, Product, Winkel, AllBestPricesR
 import './App.css';
 import DashboardStats from './DashboardStats';
 import Dashboard from './Dashboard';
+import profanityWordList from './profanity-list.json';
+
+// --- START: Profanity Filter Implementatie ---
+
+/**
+ * Controleert de invoer op scheldwoorden, inclusief pogingen tot omzeiling,
+ * en voorkomt false positives zoals 'pikant'.
+ * @param inputText De te controleren tekst.
+ * @param profanitySet Een Set met scheldwoorden in kleine letters.
+ * @returns {boolean} True als een scheldwoord is gevonden, anders false.
+ */
+const containsProfanity = (inputText: string, profanitySet: Set<string>): boolean => {
+  if (!inputText) return false;
+
+  const lowercasedText = inputText.toLowerCase();
+
+  // --- Stap 1: Controleer op normale, volledige woorden ---
+  const words = lowercasedText.replace(/[.,!?\-_]/g, ' ').split(/\s+/);
+  for (const word of words) {
+    if (profanitySet.has(word)) {
+      return true;
+    }
+  }
+
+  // --- Stap 2: Gecorrigeerde controle op bypass-pogingen (zoals l-u-l) ---
+  const condensedText = lowercasedText.replace(/[^a-z]/g, '');
+  if (words.includes(condensedText)) {
+    return false;
+  }
+  if (profanitySet.has(condensedText)) {
+    return true;
+  }
+
+  return false;
+};
+
+// --- EINDE: Profanity Filter Implementatie ---
+
 
 // Helper component for collapsible sections
 const CollapsibleSection = ({ title, children, startOpen = false }: { title: string, children: React.ReactNode, startOpen?: boolean }) => {
@@ -155,7 +193,8 @@ const PriceFinderTable = ({
           type="text"
           placeholder="Zoek op product, merk, winkel of prijs..."
           value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value.replace(/\s+$/, ''))}
+          onChange={e => setSearchTerm(e.target.value)}
+          onBlur={e => setSearchTerm(e.target.value.trimEnd())}
           maxLength={100}
         />
         <button onClick={() => setSearchTerm('')} className="button-secondary">Reset</button>
@@ -206,7 +245,7 @@ const PriceFinderTable = ({
   );
 };
 
-// Component for the user manual (FULL VERSION)
+// Component for the user manual
 const UserManual = () => (
   <CollapsibleSection title="📖 Gebruikershandleiding Boodschappen Tracker dApp 🛒">
     <div style={{ padding: '0.5rem', lineHeight: '1.6' }}>
@@ -223,7 +262,6 @@ const UserManual = () => (
         <li>Aankopen Historie (Openbaar Logboek)</li>
         <li>Dashboard: Collectieve Inzichten</li>
         <li>Belangrijke Opmerking</li>
-        <li>Ondersteun de Applicatie</li>
       </ul>
 
       <hr />
@@ -268,7 +306,7 @@ const UserManual = () => (
       <h5>Winkels Toevoegen en Beheren</h5>
       <p>In de sectie "Beheer: Winkels" kan iedereen:</p>
       <ul>
-        <li><strong>Een nieuwe winkel toevoegen:</strong> Vul de naam, de plaatsnaam (als 'keten'), en het land in. Deze winkel wordt dan beschikbaar voor alle gebruikers.</li>
+        <li><strong>Een nieuwe winkel toevoegen:</strong> Vul de naam, de plaatsnaam (als 'keten'), en het land in. Deze winkel wordt dan beschikbaar voor alle gebruikers. De app blokkeert het toevoegen van een winkel die al exact zo bestaat.</li>
         <li><strong>Bestaande winkels bekijken:</strong> Je ziet een lijst van alle winkels die ooit zijn ingevoerd.</li>
         <li><strong>Wijzigen en verwijderen:</strong> Om de data-integriteit te waarborgen, kunnen winkels alleen gewijzigd (met max. 2 aankopen) of verwijderd (zonder aankopen) worden.</li>
       </ul>
@@ -318,15 +356,49 @@ const UserManual = () => (
 
       <h4>Belangrijke Opmerking</h4>
       <p>Alle berekeningen, vergelijkingen en "beste prijs"-aanbevelingen zijn <strong>uitsluitend gebaseerd op de data die door alle gebruikers gezamenlijk is ingevoerd</strong>. De getoonde prijzen zijn dus niet gegarandeerd de actuele prijzen in de winkel, maar een afspiegeling van de door de gemeenschap geregistreerde aankoopgeschiedenis. De kwaliteit van de inzichten is een directe reflectie van de nauwkeurigheid en volledigheid van ieders bijdrage.</p>
-
-      <hr />
-
-      <h4>Ondersteun de Applicatie ❤️</h4>
-      <p>Het ontwikkelen en onderhouden van deze decentrale applicatie kost tijd en middelen. Als je de waarde van dit gezamenlijke platform inziet, overweeg dan een kleine bijdrage via de donatieknoppen. Jouw steun wordt enorm gewaardeerd en helpt de applicatie draaiende te houden voor de hele gemeenschap.</p>
-      <p>Samen bouwen we aan een transparanter boodschappenlandschap!</p>
     </div>
   </CollapsibleSection>
 );
+
+// Component for the donation section
+const DonationSection = () => {
+  const donationLinks = {
+    1: 'https://www.ing.nl/payreq/m/?trxid=3NQCaQu9RYj5QICQRUnUeSLM36cekNSO',
+    2: 'https://www.ing.nl/payreq/m/?trxid=YJSv7nrbs6WGQiTHifTJtjhP2TtB1UbP',
+    5: 'https://www.ing.nl/payreq/m/?trxid=Vi9O4QBqTgXnIV2td9BXsWyPvCmLqjSx',
+    10: 'https://www.ing.nl/payreq/m/?trxid=sG9PgoUdIayPUgEYOTtIJsEyohC20Xl8',
+    25: 'https://www.ing.nl/payreq/m/?trxid=WLefV0dvtBr4kkyD7ao299y9WKyTXOt1',
+  };
+
+  return (
+    <CollapsibleSection title="Ondersteun de Applicatie met een donatie ❤️">
+      <div style={{ padding: '0.5rem', lineHeight: '1.6' }}>
+        <h4>Ondersteun deze Decentrale Applicatie</h4>
+        <p>
+          Bedankt dat je gebruikmaakt van de Boodschappen Tracker!
+        </p>
+        <p>
+          Deze applicatie is anders dan de meeste apps: hij draait volledig decentraal op de <strong>Internet Computer blockchain</strong>. Dit betekent dat er geen centrale servers van een groot bedrijf zijn en de applicatie stabiel zal draaien on chain.
+        </p>
+        <p>
+          Er zitten behoorlijk wat development uren in deze dapp en om de dapp draaiende te houden is rekenkracht nodig welke niet gratis is. Als je de meerwaarde van de applicatie waardeert ben ik je ontzettend dankbaar voor je bijdrage.
+        </p>
+        <p>
+          Elke bijdrage wordt enorm gewaardeerd en helpt om de applicatie draaiend te houden.
+        </p>
+        <p><strong>Hartelijk dank voor je steun!</strong></p>
+
+        <div className="button-group" style={{ marginTop: '1.5rem', justifyContent: 'center' }}>
+          {Object.entries(donationLinks).map(([amount, link]) => (
+            <button key={amount} className="button-primary" onClick={() => window.open(link, '_blank')}>
+              €{amount}
+            </button>
+          ))}
+        </div>
+      </div>
+    </CollapsibleSection>
+  );
+};
 
 
 const DEVIATION_WARNING_THRESHOLD = 50;
@@ -352,6 +424,9 @@ const ABSOLUTE_MIN_PRICE_THRESHOLDS: Record<string, number> = {
 };
 
 function App() {
+  // Gebruik useMemo om de profanity Set eenmalig aan te maken voor optimale performance.
+  const profanitySet = useMemo(() => new Set(profanityWordList), []);
+
   const [winkels, setWinkels] = useState<Winkel[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [aankopen, setAankopen] = useState<AankoopExtended[]>([]);
@@ -390,17 +465,34 @@ function App() {
   const [editingProductData, setEditingProductData] = useState<Omit<Product, 'id' | 'trefwoorden'> & { trefwoorden: string }>({ naam: '', merk: '', trefwoorden: '', standaardEenheid: { STUK: null } });
 
   const [productWarning, setProductWarning] = useState<string>('');
+  const [winkelWarning, setWinkelWarning] = useState<string>('');
+  const [isWinkelDuplicate, setIsWinkelDuplicate] = useState<boolean>(false);
   const [priceWarning, setPriceWarning] = useState<string>('');
   const [isSubmissionBlocked, setIsSubmissionBlocked] = useState<boolean>(false);
 
-  // Define your unique donation links here
-  const donationLinks = {
-    1: 'https://www.ing.nl/payreq/m/?trxid=3NQCaQu9RYj5QICQRUnUeSLM36cekNSO',
-    2: 'https://www.ing.nl/payreq/m/?trxid=YJSv7nrbs6WGQiTHifTJtjhP2TtB1UbP',
-    5: 'https://www.ing.nl/payreq/m/?trxid=Vi9O4QBqTgXnIV2td9BXsWyPvCmLqjSx',
-    10: 'https://www.ing.nl/payreq/m/?trxid=sG9PgoUdIayPUgEYOTtIJsEyohC20Xl8',
-    25: 'https://www.ing.nl/payreq/m/?trxid=WLefV0dvtBr4kkyD7ao299y9WKyTXOt1',
+  // Nieuwe state voor het bijhouden van alle formulier validatiefouten
+  const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+
+  /**
+   * Herbruikbare onBlur handler voor tekstvelden om te valideren op scheldwoorden.
+   */
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (containsProfanity(value, profanitySet)) {
+      setFormErrors(prev => ({ ...prev, [name]: 'Ongepast taalgebruik is niet toegestaan.' }));
+    } else {
+      setFormErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
   };
+
+  // Check of er validatiefouten zijn in de formulieren
+  const hasWinkelFormErrors = !!(formErrors.winkelNaam || formErrors.winkelKeten);
+  const hasProductFormErrors = !!(formErrors.productNaam || formErrors.productMerk);
+  const hasAankoopFormErrors = !!formErrors.bonOmschrijving;
 
   const fetchBestPrices = async () => {
     setIsLoadingPrices(true);
@@ -444,6 +536,44 @@ function App() {
     if (landA > landB) return 1;
     return a.naam.localeCompare(b.naam);
   };
+
+  useEffect(() => {
+    const checkWinkelExistence = () => {
+      const cleanNaam = formWinkel.naam.trim().toLowerCase();
+      const cleanKeten = formWinkel.keten.trim().toLowerCase();
+
+      if (!cleanNaam || !cleanKeten) {
+        setWinkelWarning('');
+        setIsWinkelDuplicate(false);
+        return;
+      }
+
+      const exactMatch = winkels.some(w =>
+        w.naam.trim().toLowerCase() === cleanNaam &&
+        w.keten.trim().toLowerCase() === cleanKeten
+      );
+
+      if (exactMatch) {
+        setWinkelWarning('FOUT: Deze winkel bestaat al. Toevoegen is niet mogelijk.');
+        setIsWinkelDuplicate(true);
+        return;
+      }
+
+      const similarMatch = winkels.some(w =>
+        w.naam.trim().toLowerCase() === cleanNaam ||
+        w.keten.trim().toLowerCase() === cleanKeten
+      );
+
+      if (similarMatch) {
+        setWinkelWarning('⚠️ Deze winkel lijkt al te bestaan. Controleer de lijst voordat je hem toevoegt.');
+      } else {
+        setWinkelWarning('');
+      }
+      setIsWinkelDuplicate(false);
+    };
+
+    checkWinkelExistence();
+  }, [formWinkel.naam, formWinkel.keten, winkels]);
 
   useEffect(() => {
     const checkProductExistence = () => {
@@ -593,6 +723,10 @@ function App() {
 
   const handleAddWinkel = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hasWinkelFormErrors || isWinkelDuplicate) {
+      alert("Los eerst de validatiefouten op.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       await backend.addWinkel(formWinkel.naam.trim(), formWinkel.keten.trim(), formWinkel.land);
@@ -650,6 +784,10 @@ function App() {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hasProductFormErrors) {
+      alert("Los eerst de validatiefouten op.");
+      return;
+    }
     if (Object.keys(formProduct.standaardEenheid).length === 0) {
       alert("Selecteer een eenheid voor het product.");
       return;
@@ -747,6 +885,10 @@ function App() {
 
   const handleAddAankoop = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hasAankoopFormErrors) {
+      alert("Los eerst de validatiefouten op.");
+      return;
+    }
     setIsSubmitting(true);
     try {
       const { productId, winkelId, bonOmschrijving, prijs, hoeveelheid } = formAankoop;
@@ -878,45 +1020,45 @@ function App() {
   };
 
   const getVisibleProductsForSelectAll = (countryCode: 'NL' | 'ES', searchTerm: string) => {
-      const displayable = products.filter(p => {
-          const bestPriceInCountry = bestPrices.get(p.id)?.[countryCode];
-          if (!bestPriceInCountry) return false;
-          const winkelOfBestPrice = winkels.find(w => w.naam === bestPriceInCountry.winkelNaam && Object.keys(w.land)[0] === countryCode);
-          return selectedStoreIds.size === 0 || (winkelOfBestPrice && selectedStoreIds.has(winkelOfBestPrice.id));
-      });
+    const displayable = products.filter(p => {
+      const bestPriceInCountry = bestPrices.get(p.id)?.[countryCode];
+      if (!bestPriceInCountry) return false;
+      const winkelOfBestPrice = winkels.find(w => w.naam === bestPriceInCountry.winkelNaam && Object.keys(w.land)[0] === countryCode);
+      return selectedStoreIds.size === 0 || (winkelOfBestPrice && selectedStoreIds.has(winkelOfBestPrice.id));
+    });
 
-      const lowerCaseSearchTerms = searchTerm.toLowerCase().split(' ').filter(Boolean);
-      if (lowerCaseSearchTerms.length === 0) return displayable;
+    const lowerCaseSearchTerms = searchTerm.toLowerCase().split(' ').filter(Boolean);
+    if (lowerCaseSearchTerms.length === 0) return displayable;
 
-      return displayable.filter(p => {
-          const bestPriceInCountry = bestPrices.get(p.id)?.[countryCode];
-          if (!bestPriceInCountry) return false;
-          const searchableText = [
-              p.naam, p.merk, bestPriceInCountry.winkelNaam,
-              `€${bestPriceInCountry.eenheidsprijs.toFixed(2)}`,
-              formatEenheid(bestPriceInCountry.eenheid, false)
-          ].join(' ').toLowerCase();
-          return lowerCaseSearchTerms.every(term => searchableText.includes(term));
-      });
+    return displayable.filter(p => {
+      const bestPriceInCountry = bestPrices.get(p.id)?.[countryCode];
+      if (!bestPriceInCountry) return false;
+      const searchableText = [
+        p.naam, p.merk, bestPriceInCountry.winkelNaam,
+        `€${bestPriceInCountry.eenheidsprijs.toFixed(2)}`,
+        formatEenheid(bestPriceInCountry.eenheid, false)
+      ].join(' ').toLowerCase();
+      return lowerCaseSearchTerms.every(term => searchableText.includes(term));
+    });
   };
 
   const handleSelectAll = () => {
-      const hasNlSelection = [...selectedProducts].some(id => id.endsWith('-NL'));
-      const hasEsSelection = [...selectedProducts].some(id => id.endsWith('-ES'));
-      
-      const newSelection = new Set(selectedProducts);
+    const hasNlSelection = [...selectedProducts].some(id => id.endsWith('-NL'));
+    const hasEsSelection = [...selectedProducts].some(id => id.endsWith('-ES'));
 
-      if (hasNlSelection) {
-          const visibleNl = getVisibleProductsForSelectAll('NL', priceFinderNlSearch);
-          visibleNl.forEach(p => newSelection.add(`${p.id}-NL`));
-      }
-      
-      if (hasEsSelection) {
-          const visibleEs = getVisibleProductsForSelectAll('ES', priceFinderEsSearch);
-          visibleEs.forEach(p => newSelection.add(`${p.id}-ES`));
-      }
-      
-      setSelectedProducts(newSelection);
+    const newSelection = new Set(selectedProducts);
+
+    if (hasNlSelection) {
+      const visibleNl = getVisibleProductsForSelectAll('NL', priceFinderNlSearch);
+      visibleNl.forEach(p => newSelection.add(`${p.id}-NL`));
+    }
+
+    if (hasEsSelection) {
+      const visibleEs = getVisibleProductsForSelectAll('ES', priceFinderEsSearch);
+      visibleEs.forEach(p => newSelection.add(`${p.id}-ES`));
+    }
+
+    setSelectedProducts(newSelection);
   };
 
 
@@ -1000,13 +1142,30 @@ function App() {
         bestPrices={bestPrices}
       />
 
+      <DonationSection />
+
       <UserManual />
 
       <main>
-        <CollapsibleSection title="Beheer: Selecteer Winkels" startOpen={true}>
+        <CollapsibleSection title="Beheer: Selecteer Winkels">
           <div className="button-group" style={{ marginBottom: '1rem' }}>
             <button onClick={() => setSelectedStoreIds(new Set(winkels.map(w => w.id)))} className="button-secondary">Selecteer Alles</button>
-            <button onClick={() => setSelectedStoreIds(new Set(filteredStoreSelection.map(w => w.id)))} className="button-secondary">Selecteer Gefilterd</button>
+            <button
+              onClick={() => setSelectedStoreIds(prev => new Set([...prev, ...filteredStoreSelection.map(w => w.id)]))}
+              className="button-secondary"
+            >
+              Voeg Gevonden Toe
+            </button>
+            <button
+              onClick={() => {
+                const newSelection = new Set(selectedStoreIds);
+                filteredStoreSelection.forEach(w => newSelection.delete(w.id));
+                setSelectedStoreIds(newSelection);
+              }}
+              className="button-secondary"
+            >
+              Verwijder Gevonden
+            </button>
             <button onClick={() => setSelectedStoreIds(new Set())} className="button-secondary">Deselecteer Alles</button>
           </div>
           <div className="filter-controls">
@@ -1014,11 +1173,13 @@ function App() {
               type="text"
               placeholder="Zoek winkel op naam, plaats of land..."
               value={storeFilterSearchTerm}
-              onChange={e => setStoreFilterSearchTerm(e.target.value.replace(/\s+$/, ''))}
+              onChange={e => setStoreFilterSearchTerm(e.target.value)}
+              onBlur={e => setStoreFilterSearchTerm(e.target.value.trimEnd())}
               maxLength={100}
             />
             <button onClick={() => setStoreFilterSearchTerm('')} className="button-secondary">Reset</button>
           </div>
+          <p className="filter-info">{selectedStoreIds.size} van de {winkels.length} winkels geselecteerd.</p>
           <div className="checkbox-grid">
             {filteredStoreSelection.slice().sort(sortWinkels).map(winkel => (
               <div key={Number(winkel.id)} className="checkbox-item">
@@ -1039,23 +1200,59 @@ function App() {
               </div>
             ))}
           </div>
-          {selectedStoreIds.size > 0 && <p className="filter-info">{selectedStoreIds.size} van de {winkels.length} winkels geselecteerd.</p>}
         </CollapsibleSection>
 
         <CollapsibleSection title="Beheer: Winkels">
           <form onSubmit={handleAddWinkel} className="form-grid">
-            <input type="text" placeholder="Naam winkel" value={formWinkel.naam} onChange={e => setFormWinkel({ ...formWinkel, naam: e.target.value.replace(/\s+$/, '') })} required maxLength={100} />
-            <input type="text" placeholder="Plaatsnaam" value={formWinkel.keten} onChange={e => setFormWinkel({ ...formWinkel, keten: e.target.value.replace(/\s+$/, '') })} required maxLength={100} />
+            <div className="form-field-vertical">
+              <input
+                name="winkelNaam"
+                type="text"
+                placeholder="Naam winkel"
+                value={formWinkel.naam}
+                onChange={e => setFormWinkel({ ...formWinkel, naam: e.target.value })}
+                onBlur={e => {
+                  handleBlur(e);
+                  setFormWinkel(current => ({ ...current, naam: current.naam.trimEnd() }));
+                }}
+                className={formErrors.winkelNaam ? 'input-error' : ''}
+                required
+                maxLength={100}
+              />
+              {formErrors.winkelNaam && <p className="error-text">{formErrors.winkelNaam}</p>}
+            </div>
+            <div className="form-field-vertical">
+              <input
+                name="winkelKeten"
+                type="text"
+                placeholder="Plaatsnaam"
+                value={formWinkel.keten}
+                onChange={e => setFormWinkel({ ...formWinkel, keten: e.target.value })}
+                onBlur={e => {
+                  handleBlur(e);
+                  setFormWinkel(current => ({ ...current, keten: current.keten.trimEnd() }));
+                }}
+                className={formErrors.winkelKeten ? 'input-error' : ''}
+                required
+                maxLength={100}
+              />
+              {formErrors.winkelKeten && <p className="error-text">{formErrors.winkelKeten}</p>}
+            </div>
             <select value={Object.keys(formWinkel.land)[0]} onChange={e => setFormWinkel({ ...formWinkel, land: { [e.target.value]: null } as Land })} required>
               <option value="NL">Nederland</option>
               <option value="ES">Spanje</option>
             </select>
-            <button type="submit" className="button-primary" disabled={isSubmitting}>{isSubmitting ? 'Bezig...' : 'Voeg Winkel Toe'}</button>
+            <button type="submit" className="button-primary" disabled={isSubmitting || hasWinkelFormErrors || isWinkelDuplicate}>{isSubmitting ? 'Bezig...' : 'Voeg Winkel Toe'}</button>
+            {winkelWarning && (
+              <p className={`warning ${isWinkelDuplicate ? 'error-text' : ''}`} style={{ gridColumn: '1 / -1', margin: 0 }}>
+                {winkelWarning}
+              </p>
+            )}
           </form>
 
           <CollapsibleSection title="Bekijk Bestaande Winkels">
             <div className="filter-controls">
-              <input type="text" placeholder="Zoek op naam, plaats of land..." value={winkelSearchTerm} onChange={e => setWinkelSearchTerm(e.target.value.replace(/\s+$/, ''))} maxLength={100} />
+              <input type="text" placeholder="Zoek op naam, plaats of land..." value={winkelSearchTerm} onChange={e => setWinkelSearchTerm(e.target.value)} onBlur={e => setWinkelSearchTerm(e.target.value.trimEnd())} maxLength={100} />
               <button onClick={() => setWinkelSearchTerm('')} className="button-secondary">Reset</button>
             </div>
             <div className="table-container">
@@ -1069,8 +1266,8 @@ function App() {
                         {editingWinkelId === w.id ? (
                           <>
                             <td data-label="Land"><select value={Object.keys(editingWinkelData.land)[0]} onChange={e => setEditingWinkelData({ ...editingWinkelData, land: { [e.target.value]: null } as Land })}><option value="NL">NL</option><option value="ES">ES</option></select></td>
-                            <td data-label="Naam"><input type="text" value={editingWinkelData.naam} onChange={e => setEditingWinkelData({ ...editingWinkelData, naam: e.target.value.replace(/\s+$/, '') })} maxLength={100} /></td>
-                            <td data-label="Keten"><input type="text" value={editingWinkelData.keten} onChange={e => setEditingWinkelData({ ...editingWinkelData, keten: e.target.value.replace(/\s+$/, '') })} maxLength={100} /></td>
+                            <td data-label="Naam"><input type="text" value={editingWinkelData.naam} onChange={e => setEditingWinkelData({ ...editingWinkelData, naam: e.target.value })} onBlur={e => setEditingWinkelData(d => ({ ...d, naam: e.target.value.trimEnd() }))} maxLength={100} /></td>
+                            <td data-label="Keten"><input type="text" value={editingWinkelData.keten} onChange={e => setEditingWinkelData({ ...editingWinkelData, keten: e.target.value })} onBlur={e => setEditingWinkelData(d => ({ ...d, keten: e.target.value.trimEnd() }))} maxLength={100} /></td>
                             <td data-label="Acties" className="action-buttons">
                               <button onClick={() => handleUpdateWinkel(w.id)} className="button-success" disabled={updatingItemId === w.id}>{updatingItemId === w.id ? 'Opslaan...' : 'Opslaan'}</button>
                               <button onClick={() => setEditingWinkelId(null)} className="button-secondary">Annuleren</button>
@@ -1098,19 +1295,45 @@ function App() {
 
         <CollapsibleSection title="Beheer: Producten">
           <form onSubmit={handleAddProduct} className="form-grid">
-            <input
-              type="text"
-              placeholder="Naam product"
-              value={formProduct.naam}
-              onChange={e => {
-                const value = e.target.value.replace(/\s+$/, '');
-                setFormProduct({ ...formProduct, naam: value });
-                setProductSearchTerm(value);
-              }}
-              required
-              maxLength={100}
-            />
-            <input type="text" placeholder="Merk (optioneel)" value={formProduct.merk} onChange={e => setFormProduct({ ...formProduct, merk: e.target.value.replace(/\s+$/, '') })} maxLength={100} />
+            <div className="form-field-vertical">
+              <input
+                name="productNaam"
+                type="text"
+                placeholder="Naam product"
+                value={formProduct.naam}
+                onChange={e => {
+                  const value = e.target.value;
+                  setFormProduct({ ...formProduct, naam: value });
+                  setProductSearchTerm(value);
+                }}
+                onBlur={e => {
+                  handleBlur(e);
+                  const trimmedValue = e.target.value.trimEnd();
+                  setFormProduct(current => ({ ...current, naam: trimmedValue }));
+                  setProductSearchTerm(trimmedValue);
+                }}
+                className={formErrors.productNaam ? 'input-error' : ''}
+                required
+                maxLength={100}
+              />
+              {formErrors.productNaam && <p className="error-text">{formErrors.productNaam}</p>}
+            </div>
+            <div className="form-field-vertical">
+              <input
+                name="productMerk"
+                type="text"
+                placeholder="Merk (optioneel)"
+                value={formProduct.merk}
+                onChange={e => setFormProduct({ ...formProduct, merk: e.target.value })}
+                onBlur={e => {
+                  handleBlur(e);
+                  setFormProduct(current => ({ ...current, merk: current.merk.trimEnd() }));
+                }}
+                className={formErrors.productMerk ? 'input-error' : ''}
+                maxLength={100}
+              />
+              {formErrors.productMerk && <p className="error-text">{formErrors.productMerk}</p>}
+            </div>
             <select
               value={Object.keys(formProduct.standaardEenheid)[0] || ''}
               onChange={e => {
@@ -1134,12 +1357,12 @@ function App() {
               <p><strong>Merk:</strong> {formProduct.merk || 'n.v.t.'}</p>
               <p><strong>Eenheid:</strong> {formatEenheid(formProduct.standaardEenheid) || '—'}</p>
             </div>
-            <button type="submit" className="button-primary" disabled={isSubmitting}>{isSubmitting ? 'Bezig...' : 'Voeg Product Toe'}</button>
+            <button type="submit" className="button-primary" disabled={isSubmitting || hasProductFormErrors}>{isSubmitting ? 'Bezig...' : 'Voeg Product Toe'}</button>
           </form>
 
           <CollapsibleSection title="Bekijk Bestaande Producten">
             <div className="filter-controls">
-              <input type="text" placeholder="Zoek op naam, merk of eenheid..." value={productSearchTerm} onChange={e => setProductSearchTerm(e.target.value.replace(/\s+$/, ''))} maxLength={100} />
+              <input type="text" placeholder="Zoek op naam, merk of eenheid..." value={productSearchTerm} onChange={e => setProductSearchTerm(e.target.value)} onBlur={e => setProductSearchTerm(e.target.value.trimEnd())} maxLength={100} />
               <button onClick={() => setProductSearchTerm('')} className="button-secondary">Reset</button>
             </div>
             <div className="table-container">
@@ -1152,8 +1375,8 @@ function App() {
                       <tr key={Number(p.id)}>
                         {editingProductId === p.id ? (
                           <>
-                            <td data-label="Naam"><input type="text" value={editingProductData.naam} onChange={e => setEditingProductData({ ...editingProductData, naam: e.target.value.replace(/\s+$/, '') })} maxLength={100} /></td>
-                            <td data-label="Merk"><input type="text" placeholder="Merk (optioneel)" value={editingProductData.merk} onChange={e => setEditingProductData({ ...editingProductData, merk: e.target.value.replace(/\s+$/, '') })} maxLength={100} /></td>
+                            <td data-label="Naam"><input type="text" value={editingProductData.naam} onChange={e => setEditingProductData({ ...editingProductData, naam: e.target.value })} onBlur={e => setEditingProductData(d => ({ ...d, naam: e.target.value.trimEnd() }))} maxLength={100} /></td>
+                            <td data-label="Merk"><input type="text" placeholder="Merk (optioneel)" value={editingProductData.merk} onChange={e => setEditingProductData({ ...editingProductData, merk: e.target.value })} onBlur={e => setEditingProductData(d => ({ ...d, merk: e.target.value.trimEnd() }))} maxLength={100} /></td>
                             <td data-label="Eenheid">{formatEenheid(editingProductData.standaardEenheid).replace('per ', '')}</td>
                             <td data-label="Acties" className="action-buttons">
                               <button onClick={() => handleUpdateProduct(p.id)} className="button-success" disabled={updatingItemId === p.id}>{updatingItemId === p.id ? 'Opslaan...' : 'Opslaan'}</button>
@@ -1185,14 +1408,16 @@ function App() {
             <div className="form-field">
               <label htmlFor="product-select">Product:</label>
               <input id="product-select" list="product-options" value={productSearch} onChange={e => {
-                const value = e.target.value.replace(/\s+$/, '');
+                const value = e.target.value;
                 setProductSearch(value);
                 const selectedProd = products.find(p => `${p.naam} (${p.merk})` === value);
                 setPriceWarning('');
                 setIsSubmissionBlocked(false);
                 setSuggestedFields(new Set());
                 setFormAankoop(prev => ({ ...prev, productId: selectedProd ? String(selectedProd.id) : '', bonOmschrijving: '', prijs: '', hoeveelheid: '' }));
-              }} placeholder="-- Selecteer Product --" required maxLength={100} />
+              }}
+                onBlur={e => setProductSearch(e.target.value.trimEnd())}
+                placeholder="-- Selecteer Product --" required maxLength={100} />
             </div>
             <datalist id="product-options">
               {products.slice().sort((a, b) => a.naam.localeCompare(b.naam)).map(p => <option key={Number(p.id)} value={`${p.naam} (${p.merk})`} />)}
@@ -1200,21 +1425,39 @@ function App() {
             <div className="form-field">
               <label htmlFor="winkel-select">Winkel:</label>
               <input id="winkel-select" list="winkel-options" value={winkelSearch} onChange={e => {
-                const value = e.target.value.replace(/\s+$/, '');
+                const value = e.target.value;
                 setWinkelSearch(value);
                 const selectedWinkel = filteredWinkelsForPurchaseForm.find(w => `${Object.keys(w.land)[0]} - ${w.naam} (${w.keten})` === value);
                 setPriceWarning('');
                 setIsSubmissionBlocked(false);
                 setSuggestedFields(new Set());
                 setFormAankoop(prev => ({ ...prev, winkelId: selectedWinkel ? String(selectedWinkel.id) : '', bonOmschrijving: '', prijs: '', hoeveelheid: '' }));
-              }} placeholder="-- Selecteer Winkel --" required maxLength={100} />
+              }}
+                onBlur={e => setWinkelSearch(e.target.value.trimEnd())}
+                placeholder="-- Selecteer Winkel --" required maxLength={100} />
             </div>
             <datalist id="winkel-options">
               {filteredWinkelsForPurchaseForm.slice().sort(sortWinkels).map(w => <option key={Number(w.id)} value={`${Object.keys(w.land)[0]} - ${w.naam} (${w.keten})`} />)}
             </datalist>
             <div className="form-field">
               <label htmlFor="bon-omschrijving">Bon omschrijving:</label>
-              <input id="bon-omschrijving" type="text" placeholder="Bon omschrijving" value={formAankoop.bonOmschrijving} onChange={e => setFormAankoop({ ...formAankoop, bonOmschrijving: e.target.value.replace(/\s+$/, '') })} required className={suggestedFields.has('bonOmschrijving') ? 'suggested-input' : ''} onInput={() => suggestedFields.delete('bonOmschrijving') && setSuggestedFields(new Set(suggestedFields))} maxLength={100} />
+              <input
+                id="bon-omschrijving"
+                name="bonOmschrijving"
+                type="text"
+                placeholder="Bon omschrijving"
+                value={formAankoop.bonOmschrijving}
+                onChange={e => setFormAankoop({ ...formAankoop, bonOmschrijving: e.target.value })}
+                onBlur={e => {
+                  handleBlur(e);
+                  setFormAankoop(current => ({ ...current, bonOmschrijving: current.bonOmschrijving.trimEnd() }));
+                }}
+                required
+                className={`${suggestedFields.has('bonOmschrijving') ? 'suggested-input' : ''} ${formErrors.bonOmschrijving ? 'input-error' : ''}`}
+                onInput={() => suggestedFields.delete('bonOmschrijving') && setSuggestedFields(new Set(suggestedFields))}
+                maxLength={100}
+              />
+              {formErrors.bonOmschrijving && <p className="error-text" style={{ gridColumn: 'span 1' }}>{formErrors.bonOmschrijving}</p>}
             </div>
             <div className="form-field">
               <label htmlFor="prijs">Prijs (€):</label>
@@ -1235,7 +1478,7 @@ function App() {
               </div>
             )}
             <div className="form-field">
-              <button type="submit" className="button-primary full-width" disabled={isSubmitting || isSubmissionBlocked}>
+              <button type="submit" className="button-primary full-width" disabled={isSubmitting || isSubmissionBlocked || hasAankoopFormErrors}>
                 {isSubmitting ? 'Bezig...' : 'Voeg Aankoop Toe'}
               </button>
             </div>
@@ -1257,17 +1500,17 @@ function App() {
 
           {selectedProducts.size > 0 && (
             <div className="checkbox-item" style={{ maxWidth: '300px', marginTop: '1rem' }}>
-                <input
-                    type="checkbox"
-                    id="export-description-checkbox"
-                    checked={exportWithDescription}
-                    onChange={e => setExportWithDescription(e.target.checked)}
-                />
-                <label htmlFor="export-description-checkbox">Exporteer met bon omschrijving</label>
+              <input
+                type="checkbox"
+                id="export-description-checkbox"
+                checked={exportWithDescription}
+                onChange={e => setExportWithDescription(e.target.checked)}
+              />
+              <label htmlFor="export-description-checkbox">Exporteer met bon omschrijving</label>
             </div>
           )}
 
-          <CollapsibleSection title="Nederland" startOpen={true}>
+          <CollapsibleSection title="Nederland">
             <PriceFinderTable countryCode="NL" products={products} bestPrices={bestPrices} selectedProducts={selectedProducts} onSelectionChange={handleSelectionChange} winkels={winkels} selectedStoreIds={selectedStoreIds} searchTerm={priceFinderNlSearch} setSearchTerm={setPriceFinderNlSearch} />
           </CollapsibleSection>
           <CollapsibleSection title="Spanje">
@@ -1277,7 +1520,7 @@ function App() {
 
         <CollapsibleSection title="Aankopen Historie">
           <div className="filter-controls">
-            <input type="text" placeholder="Zoek op alle kolommen..." value={aankoopSearchTerm} onChange={e => setAankoopSearchTerm(e.target.value.replace(/\s+$/, ''))} maxLength={100} />
+            <input type="text" placeholder="Zoek op alle kolommen..." value={aankoopSearchTerm} onChange={e => setAankoopSearchTerm(e.target.value)} onBlur={e => setAankoopSearchTerm(e.target.value.trimEnd())} maxLength={100} />
             <button onClick={() => setAankoopSearchTerm('')} className="button-secondary">Reset</button>
           </div>
           <div className="table-container">
@@ -1318,33 +1561,6 @@ function App() {
             winkels={winkels}
             selectedStoreIds={selectedStoreIds}
           />
-        </CollapsibleSection>
-
-        <CollapsibleSection title="Ondersteun de Applicatie ❤️">
-          <div style={{ padding: '0.5rem', lineHeight: '1.6' }}>
-            <h4>Ondersteun deze Decentrale Applicatie</h4>
-            <p>
-              Bedankt dat je gebruikmaakt van de Boodschappen Tracker!
-            </p>
-            <p>
-              Deze applicatie is anders dan de meeste apps: hij draait volledig decentraal op de <strong>Internet Computer blockchain</strong>. Dit betekent dat er geen centrale servers van een groot bedrijf zijn en de applicatie stabiel zal draaien on chain.
-            </p>
-            <p>
-              Er zitten behoorlijk wat development uren in deze dapp en om de dapp draaiende te houden is rekenkracht nodig welke niet gratis is. Als je de meerwaarde van de applicatie waardeert ben ik je ontzettend dankbaar voor je bijdrage.
-            </p>
-            <p>
-              Elke bijdrage wordt enorm gewaardeerd en helpt om de applicatie draaiend te houden.
-            </p>
-            <p><strong>Hartelijk dank voor je steun!</strong></p>
-
-            <div className="button-group" style={{ marginTop: '1.5rem', justifyContent: 'center' }}>
-              <button className="button-primary" onClick={() => window.open(donationLinks[1], '_blank')}>€1</button>
-              <button className="button-primary" onClick={() => window.open(donationLinks[2], '_blank')}>€2</button>
-              <button className="button-primary" onClick={() => window.open(donationLinks[5], '_blank')}>€5</button>
-              <button className="button-primary" onClick={() => window.open(donationLinks[10], '_blank')}>€10</button>
-              <button className="button-primary" onClick={() => window.open(donationLinks[25], '_blank')}>€25</button>
-            </div>
-          </div>
         </CollapsibleSection>
 
       </main>

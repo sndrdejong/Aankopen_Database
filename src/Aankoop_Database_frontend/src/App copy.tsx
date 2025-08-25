@@ -363,8 +363,6 @@ function App() {
   const [deletingItemId, setDeletingItemId] = useState<bigint | null>(null);
 
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
-  const [exportWithDescription, setExportWithDescription] = useState(false);
-
 
   const [winkelSearchTerm, setWinkelSearchTerm] = useState('');
   const [productSearchTerm, setProductSearchTerm] = useState('');
@@ -829,44 +827,14 @@ function App() {
 
     let exportText = "🛒 Mijn Boodschappenlijstje\n";
     let currentWinkel = "";
-    sortedSelection.forEach(({ product, priceInfo, country }) => {
+    sortedSelection.forEach(({ product, priceInfo }) => {
       const winkelNaam = priceInfo?.winkelNaam;
       if (winkelNaam && winkelNaam !== currentWinkel) {
         currentWinkel = winkelNaam;
         exportText += `\n--- ${currentWinkel} ---\n`;
       }
-
-      let bonOmschrijving = '';
-      if (exportWithDescription && priceInfo) {
-        const winkel = winkels.find(w => w.naam === priceInfo.winkelNaam && Object.keys(w.land)[0] === country.toUpperCase());
-        if (winkel) {
-          const latestPurchase = aankopen
-            .map(a => a[0])
-            .filter(a => a.productId === product.id && a.winkelId === winkel.id)
-            .sort((a, b) => Number(b.datum) - Number(a.datum))[0];
-          if (latestPurchase) {
-            bonOmschrijving = ` (${latestPurchase.bonOmschrijving})`;
-          }
-        }
-      }
-
-      let priceString = '';
-      if (priceInfo) {
-        const unitKey = Object.keys(priceInfo.eenheid)[0];
-        const originalPrice = priceInfo.eenheidsprijs;
-
-        if (unitKey === 'GRAM') {
-          const pricePerKg = originalPrice * 1000;
-          priceString = ` - €${pricePerKg.toFixed(2)} per kg`;
-        } else if (unitKey === 'MILLILITER') {
-          const pricePerLiter = originalPrice * 1000;
-          priceString = ` - €${pricePerLiter.toFixed(2)} per liter`;
-        } else {
-          priceString = ` - €${originalPrice.toFixed(2)} ${formatEenheid(priceInfo.eenheid)}`;
-        }
-      }
-
-      exportText += `- ${product.naam} (${product.merk})${bonOmschrijving}${priceString}\n`;
+      const priceString = priceInfo ? `€${priceInfo.eenheidsprijs.toFixed(2)} ${formatEenheid(priceInfo.eenheid)}` : '';
+      exportText += `- ${product.naam} (${product.merk}) ${priceString}\n`;
     });
 
     navigator.clipboard.writeText(exportText).then(() => {
@@ -876,49 +844,6 @@ function App() {
       console.error(err);
     });
   };
-
-  const getVisibleProductsForSelectAll = (countryCode: 'NL' | 'ES', searchTerm: string) => {
-      const displayable = products.filter(p => {
-          const bestPriceInCountry = bestPrices.get(p.id)?.[countryCode];
-          if (!bestPriceInCountry) return false;
-          const winkelOfBestPrice = winkels.find(w => w.naam === bestPriceInCountry.winkelNaam && Object.keys(w.land)[0] === countryCode);
-          return selectedStoreIds.size === 0 || (winkelOfBestPrice && selectedStoreIds.has(winkelOfBestPrice.id));
-      });
-
-      const lowerCaseSearchTerms = searchTerm.toLowerCase().split(' ').filter(Boolean);
-      if (lowerCaseSearchTerms.length === 0) return displayable;
-
-      return displayable.filter(p => {
-          const bestPriceInCountry = bestPrices.get(p.id)?.[countryCode];
-          if (!bestPriceInCountry) return false;
-          const searchableText = [
-              p.naam, p.merk, bestPriceInCountry.winkelNaam,
-              `€${bestPriceInCountry.eenheidsprijs.toFixed(2)}`,
-              formatEenheid(bestPriceInCountry.eenheid, false)
-          ].join(' ').toLowerCase();
-          return lowerCaseSearchTerms.every(term => searchableText.includes(term));
-      });
-  };
-
-  const handleSelectAll = () => {
-      const hasNlSelection = [...selectedProducts].some(id => id.endsWith('-NL'));
-      const hasEsSelection = [...selectedProducts].some(id => id.endsWith('-ES'));
-      
-      const newSelection = new Set(selectedProducts);
-
-      if (hasNlSelection) {
-          const visibleNl = getVisibleProductsForSelectAll('NL', priceFinderNlSearch);
-          visibleNl.forEach(p => newSelection.add(`${p.id}-NL`));
-      }
-      
-      if (hasEsSelection) {
-          const visibleEs = getVisibleProductsForSelectAll('ES', priceFinderEsSearch);
-          visibleEs.forEach(p => newSelection.add(`${p.id}-ES`));
-      }
-      
-      setSelectedProducts(newSelection);
-  };
-
 
   const filteredStoreSelection = useMemo(() => {
     const lowerCaseSearchTerms = storeFilterSearchTerm.toLowerCase().split(' ').filter(Boolean);
@@ -967,7 +892,6 @@ function App() {
 
       const searchableText = [
         prodNaam,
-        aankoop.bonOmschrijving,
         winkelNaam,
         winkel ? Object.keys(winkel.land)[0] : '',
         `€${aankoop.prijs.toFixed(2)}`,
@@ -1244,28 +1168,15 @@ function App() {
 
         <section className="card">
           <h2>Beste Prijs Vinder</h2>
-          <div className="button-group" style={{ marginBottom: '1rem' }}>
+          <div className="button-group">
             <button onClick={handleFindAllBestPrices} disabled={isLoadingPrices} className="button-primary">{isLoadingPrices ? 'Berekenen...' : 'Ververs Prijzen'}</button>
             {selectedProducts.size > 0 && (
               <>
                 <button onClick={handleExportSelection} className="button-success">Exporteer Lijst ({selectedProducts.size})</button>
-                <button onClick={handleSelectAll} className="button-secondary">Alles Selecteren</button>
                 <button onClick={() => setSelectedProducts(new Set())} className="button-danger">Reset Selectie</button>
               </>
             )}
           </div>
-
-          {selectedProducts.size > 0 && (
-            <div className="checkbox-item" style={{ maxWidth: '300px', marginTop: '1rem' }}>
-                <input
-                    type="checkbox"
-                    id="export-description-checkbox"
-                    checked={exportWithDescription}
-                    onChange={e => setExportWithDescription(e.target.checked)}
-                />
-                <label htmlFor="export-description-checkbox">Exporteer met bon omschrijving</label>
-            </div>
-          )}
 
           <CollapsibleSection title="Nederland" startOpen={true}>
             <PriceFinderTable countryCode="NL" products={products} bestPrices={bestPrices} selectedProducts={selectedProducts} onSelectionChange={handleSelectionChange} winkels={winkels} selectedStoreIds={selectedStoreIds} searchTerm={priceFinderNlSearch} setSearchTerm={setPriceFinderNlSearch} />
@@ -1282,7 +1193,7 @@ function App() {
           </div>
           <div className="table-container">
             <table>
-              <thead><tr><th>Product</th><th>Omschrijving bon</th><th>Winkel</th><th>Land</th><th>Prijs</th><th>Hoeveelheid</th><th>Eenheid</th><th>Datum</th><th>Actie</th></tr></thead>
+              <thead><tr><th>Product</th><th>Winkel</th><th>Land</th><th>Prijs</th><th>Hoeveelheid</th><th>Eenheid</th><th>Datum</th><th>Actie</th></tr></thead>
               <tbody>
                 {searchedAankopen.slice().sort(([a], [b]) => Number(b.datum) - Number(a.datum)).map(([aankoop, prodNaam, winkelNaam]) => {
                   const winkel = winkels.find(w => w.id === aankoop.winkelId);
@@ -1291,7 +1202,6 @@ function App() {
                   return (
                     <tr key={Number(aankoop.id)}>
                       <td data-label="Product">{prodNaam}</td>
-                      <td data-label="Omschrijving bon">{aankoop.bonOmschrijving}</td>
                       <td data-label="Winkel">{winkelNaam}</td>
                       <td data-label="Land">{winkel ? Object.keys(winkel.land)[0] : 'n/a'}</td>
                       <td data-label="Prijs">€{aankoop.prijs.toFixed(2)}</td>

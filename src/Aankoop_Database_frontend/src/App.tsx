@@ -467,6 +467,7 @@ function App() {
   const [productWarning, setProductWarning] = useState<string>('');
   const [winkelWarning, setWinkelWarning] = useState<string>('');
   const [isWinkelDuplicate, setIsWinkelDuplicate] = useState<boolean>(false);
+  const [isWinkelSimilar, setIsWinkelSimilar] = useState<boolean>(false);
   const [priceWarning, setPriceWarning] = useState<string>('');
   const [isSubmissionBlocked, setIsSubmissionBlocked] = useState<boolean>(false);
 
@@ -545,6 +546,7 @@ function App() {
       if (!cleanNaam || !cleanKeten) {
         setWinkelWarning('');
         setIsWinkelDuplicate(false);
+        setIsWinkelSimilar(false); // Reset hier ook
         return;
       }
 
@@ -556,6 +558,7 @@ function App() {
       if (exactMatch) {
         setWinkelWarning('FOUT: Deze winkel bestaat al. Toevoegen is niet mogelijk.');
         setIsWinkelDuplicate(true);
+        setIsWinkelSimilar(false); // Het is een exacte match, geen vergelijkbare
         return;
       }
 
@@ -566,10 +569,12 @@ function App() {
 
       if (similarMatch) {
         setWinkelWarning('⚠️ Deze winkel lijkt al te bestaan. Controleer de lijst voordat je hem toevoegt.');
+        setIsWinkelSimilar(true); // Stel de nieuwe state in
       } else {
         setWinkelWarning('');
+        setIsWinkelSimilar(false); // Reset als er geen vergelijkbare match is
       }
-      setIsWinkelDuplicate(false);
+      setIsWinkelDuplicate(false); // Dit blijft false, want het is geen exacte match
     };
 
     checkWinkelExistence();
@@ -727,6 +732,14 @@ function App() {
       alert("Los eerst de validatiefouten op.");
       return;
     }
+
+    // Als de winkel vergelijkbaar is, vraag om bevestiging
+    if (isWinkelSimilar) {
+      if (!window.confirm("Deze winkel lijkt al te bestaan. Weet u zeker dat u deze wilt toevoegen?")) {
+        return; // Stop de functie als de gebruiker op 'Annuleren' klikt
+      }
+    }
+
     setIsSubmitting(true);
     try {
       await backend.addWinkel(formWinkel.naam.trim(), formWinkel.keten.trim(), formWinkel.land);

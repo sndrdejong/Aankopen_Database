@@ -1,3 +1,5 @@
+// src/App.tsx
+
 import * as React from 'react';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Aankoop_Database_backend as backend } from 'declarations/Aankoop_Database_backend';
@@ -204,6 +206,128 @@ const PriceFinderTable = ({
   );
 };
 
+// Component for the user manual (FULL VERSION)
+const UserManual = () => (
+  <CollapsibleSection title="📖 Gebruikershandleiding Boodschappen Tracker dApp 🛒">
+    <div style={{ padding: '0.5rem', lineHeight: '1.6' }}>
+      <p>Welkom bij de Boodschappen Tracker! Deze handleiding helpt je op weg om het maximale uit deze decentrale en collaboratieve applicatie (dApp) te halen. Samen bouwen we aan een openbare prijsdatabase!</p>
+
+      <h4>Inhoudsopgave</h4>
+      <ul>
+        <li>Doel van de Applicatie</li>
+        <li>De Kracht van Gedeelde Data</li>
+        <li>Hoofdscherm & Algemene Statistieken</li>
+        <li>Beheer: Winkels en Producten Toevoegen</li>
+        <li>Nieuwe Aankoop Toevoegen (Bijdragen aan de Database)</li>
+        <li>Beste Prijs Vinder (Gebaseerd op Ieders Input)</li>
+        <li>Aankopen Historie (Openbaar Logboek)</li>
+        <li>Dashboard: Collectieve Inzichten</li>
+        <li>Belangrijke Opmerking</li>
+        <li>Ondersteun de Applicatie</li>
+      </ul>
+
+      <hr />
+
+      <h4>Doel van de Applicatie</h4>
+      <p>De Boodschappen Tracker is een <strong>openbaar en gezamenlijk platform</strong> om boodschappenprijzen te volgen. In plaats van een persoonlijke database, bouwt <strong>iedere gebruiker</strong> mee aan één centrale, openbare database. Het doel is om collectief:</p>
+      <ul>
+        <li>Prijzen te vergelijken tussen verschillende winkels.</li>
+        <li>Prijsontwikkelingen van producten in kaart te brengen.</li>
+        <li>De goedkoopste opties voor boodschappen te vinden op basis van recente, door de gemeenschap aangeleverde data.</li>
+        <li>Een boodschappenlijst samen te stellen en te exporteren.</li>
+      </ul>
+      <p>Deze applicatie draait volledig decentraal op de <strong>Internet Computer blockchain</strong>. Dit betekent dat de data van iedereen is, transparant wordt beheerd en de applicatie stabiel en onafhankelijk draait.</p>
+
+      <hr />
+
+      <h4>De Kracht van Gedeelde Data</h4>
+      <p>Deze applicatie is zo krachtig als de data die <strong>we met z'n allen invoeren</strong>. De waarde en nauwkeurigheid van de inzichten groeien naarmate meer mensen aankopen registreren.</p>
+      <ul>
+        <li><strong>Samenwerking is cruciaal:</strong> Iedere bijdrage, hoe klein ook, helpt de database nauwkeuriger te maken voor iedereen.</li>
+        <li><strong>Consistentie is essentieel:</strong> Voer productnamen en merken consequent in. De app helpt hierbij door suggesties te doen en te waarschuwen voor duplicaten, wat helpt om de gedeelde database schoon te houden.</li>
+        <li><strong>Geduld loont:</strong> In het begin moeten de meest voorkomende winkels en producten door de eerste gebruikers worden toegevoegd. Naarmate de database groeit, wordt het voor iedereen makkelijker om aankopen toe te voegen en de collectieve data te gebruiken voor slimmere boodschappenkeuzes.</li>
+      </ul>
+
+      <hr />
+
+      <h4>Hoofdscherm & Algemene Statistieken</h4>
+      <p>Bovenaan de pagina vind je een overzicht met kernstatistieken die een snel beeld geven van de gehele database, gevuld door alle gebruikers.</p>
+      <ul>
+        <li><strong>Geregistreerde Prijzen:</strong> Het totale aantal aankopen dat door de hele gemeenschap is ingevoerd.</li>
+        <li><strong>Unieke Producten:</strong> Het aantal unieke producten dat in de database staat.</li>
+        <li><strong>Aangemaakte Winkels:</strong> Het aantal winkels dat in de database is aangemaakt.</li>
+        <li><strong>Producten met Prijsdata:</strong> Dit toont hoeveel van de aangemaakte producten ten minste één geregistreerde prijs hebben, gebaseerd op alle data.</li>
+      </ul>
+
+      <hr />
+
+      <h4>Beheer: Winkels en Producten Toevoegen</h4>
+      <p>Iedereen kan bijdragen aan de lijst van winkels en producten. Deze worden gedeeld met alle gebruikers.</p>
+      <h5>Winkels Selecteren voor Focus</h5>
+      <p>Met de sectie "Beheer: Selecteer Winkels" kun je de weergave in de hele applicatie filteren voor je eigen overzicht. Als je bijvoorbeeld alleen prijzen van supermarkten in Nederland wilt zien, kun je deze hier selecteren. Dit beïnvloedt de "Beste Prijs Vinder" en andere overzichten.</p>
+      <h5>Winkels Toevoegen en Beheren</h5>
+      <p>In de sectie "Beheer: Winkels" kan iedereen:</p>
+      <ul>
+        <li><strong>Een nieuwe winkel toevoegen:</strong> Vul de naam, de plaatsnaam (als 'keten'), en het land in. Deze winkel wordt dan beschikbaar voor alle gebruikers.</li>
+        <li><strong>Bestaande winkels bekijken:</strong> Je ziet een lijst van alle winkels die ooit zijn ingevoerd.</li>
+        <li><strong>Wijzigen en verwijderen:</strong> Om de data-integriteit te waarborgen, kunnen winkels alleen gewijzigd (met max. 2 aankopen) of verwijderd (zonder aankopen) worden.</li>
+      </ul>
+      <h5>Producten Toevoegen en Beheren</h5>
+      <p>In "Beheer: Producten" voeg je producten toe aan de centrale database:</p>
+      <ul>
+        <li><strong>Een nieuw product toevoegen:</strong> Voer de naam, het merk en de standaard eenheid in. De app waarschuwt als een product met dezelfde naam al bestaat om de gedeelde lijst zo schoon mogelijk te houden (Blijf wel altijd zelf kritisch).</li>
+        <li><strong>Slimme suggesties:</strong> De app stelt automatisch een eenheid voor op basis van hoe vergelijkbare producten door andere gebruikers zijn ingevoerd (Blijf wel altijd zelf kritisch).</li>
+        <li><strong>Wijzigen en verwijderen:</strong> Net als bij winkels, zijn er restricties op het aanpassen van producten om de consistentie van de openbare data te bewaren.</li>
+      </ul>
+
+      <hr />
+
+      <h4>Nieuwe Aankoop Toevoegen (Bijdragen aan de Database)</h4>
+      <p>Dit is de kern van de collectieve inspanning. In de sectie "Nieuwe Aankoop Toevoegen" registreer je een aankoop en deel je deze prijsinformatie met iedereen. Het mag natuurlijk ook een simpele prijs update zijn als je die actief wilt toevoegen.</p>
+      <ul>
+        <li><strong>Product en Winkel selecteren:</strong> Kies uit de lijsten die door de gemeenschap zijn opgebouwd.</li>
+        <li><strong>Automatisch invullen:</strong> De app vult de velden op basis van de <strong>laatst door énige gebruiker ingevoerde aankoop</strong> voor die product-winkelcombinatie (Blijf zelf goed controleren). Dit versnelt het invoerproces en bevordert consistentie.</li>
+        <li><strong>Prijs- en Hoeveelheidvalidatie:</strong> Om de kwaliteit van de openbare data te beschermen, bevat de app slimme controles die waarschuwen of blokkeren bij onrealistische prijzen.</li>
+      </ul>
+
+      <hr />
+
+      <h4>Beste Prijs Vinder (Gebaseerd op Ieders Input)</h4>
+      <p>Deze krachtige tool maakt gebruik van de <strong>collectieve kennis van alle gebruikers</strong>. Voor elk product toont de "Beste Prijs Vinder" de winkel waar de <strong>laatst geregistreerde laagste eenheidsprijs door iemand in de gemeenschap</strong> is betaald, opgesplitst per land.</p>
+      <ul>
+        <li><strong>Boodschappenlijst maken:</strong> Vink de producten aan die je nodig hebt.</li>
+        <li><strong>Exporteren:</strong> Klik op "Exporteer Lijst" om een overzichtelijke boodschappenlijst te genereren, gegroepeerd per winkel, gebaseerd op de collectieve prijsdata.</li>
+      </ul>
+
+      <hr />
+
+      <h4>Aankopen Historie (Openbaar Logboek)</h4>
+      <p>In deze sectie vind je een <strong>openbaar en transparant overzicht</strong> van alle aankopen / registraties die door alle gebruikers zijn ingevoerd, gesorteerd op datum (nieuwste eerst). Een invoer kan alleen binnen 5 minuten worden verwijderd om de data-integriteit te waarborgen.</p>
+
+      <hr />
+
+      <h4>Dashboard: Collectieve Inzichten</h4>
+      <p>Het Dashboard visualiseert de data van de <strong>gehele gemeenschap</strong>. Deze widgets worden krachtiger naarmate er meer data wordt ingevoerd.</p>
+      <ul>
+        <li><strong>Prijsontwikkeling Producten per Winkel:</strong> Toont de procentuele prijsverandering van een product in een winkel, berekend op basis van de eerste en laatste aankoop die ooit door iemand zijn ingevoerd in de database.</li>
+        <li><strong>Goedkoopste Winkels per Product:</strong> Vergelijkt de meest recente eenheidsprijzen van een product over verschillende winkels, gebaseerd op de laatste invoer van alle gebruikers. Dit geeft een actueel beeld van waar producten het voordeligst zijn dankzij de inspanningen van de gemeenschap.</li>
+      </ul>
+
+      <hr />
+
+      <h4>Belangrijke Opmerking</h4>
+      <p>Alle berekeningen, vergelijkingen en "beste prijs"-aanbevelingen zijn <strong>uitsluitend gebaseerd op de data die door alle gebruikers gezamenlijk is ingevoerd</strong>. De getoonde prijzen zijn dus niet gegarandeerd de actuele prijzen in de winkel, maar een afspiegeling van de door de gemeenschap geregistreerde aankoopgeschiedenis. De kwaliteit van de inzichten is een directe reflectie van de nauwkeurigheid en volledigheid van ieders bijdrage.</p>
+
+      <hr />
+
+      <h4>Ondersteun de Applicatie ❤️</h4>
+      <p>Het ontwikkelen en onderhouden van deze decentrale applicatie kost tijd en middelen. Als je de waarde van dit gezamenlijke platform inziet, overweeg dan een kleine bijdrage via de donatieknoppen. Jouw steun wordt enorm gewaardeerd en helpt de applicatie draaiende te houden voor de hele gemeenschap.</p>
+      <p>Samen bouwen we aan een transparanter boodschappenlandschap!</p>
+    </div>
+  </CollapsibleSection>
+);
+
+
 const DEVIATION_WARNING_THRESHOLD = 50;
 const DEVIATION_BLOCK_THRESHOLD = 200;
 const MIN_PURCHASES_FOR_AVERAGE = 2;
@@ -265,6 +389,15 @@ function App() {
   const [productWarning, setProductWarning] = useState<string>('');
   const [priceWarning, setPriceWarning] = useState<string>('');
   const [isSubmissionBlocked, setIsSubmissionBlocked] = useState<boolean>(false);
+
+  // Define your unique donation links here
+  const donationLinks = {
+    1: 'https://www.ing.nl/payreq/m/?trxid=3NQCaQu9RYj5QICQRUnUeSLM36cekNSO',
+    2: 'https://www.ing.nl/payreq/m/?trxid=YJSv7nrbs6WGQiTHifTJtjhP2TtB1UbP',
+    5: 'https://www.ing.nl/payreq/m/?trxid=Vi9O4QBqTgXnIV2td9BXsWyPvCmLqjSx',
+    10: 'https://www.ing.nl/payreq/m/?trxid=sG9PgoUdIayPUgEYOTtIJsEyohC20Xl8',
+    25: 'https://www.ing.nl/payreq/m/?trxid=WLefV0dvtBr4kkyD7ao299y9WKyTXOt1',
+  };
 
   const fetchBestPrices = async () => {
     setIsLoadingPrices(true);
@@ -790,6 +923,8 @@ function App() {
         bestPrices={bestPrices}
       />
 
+      <UserManual />
+
       <main>
         <CollapsibleSection title="Beheer: Selecteer Winkels" startOpen={true}>
           <div className="button-group" style={{ marginBottom: '1rem' }}>
@@ -1090,6 +1225,33 @@ function App() {
             products={products}
             winkels={winkels}
           />
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Ondersteun de Applicatie ❤️">
+          <div style={{ padding: '0.5rem', lineHeight: '1.6' }}>
+            <h4>Ondersteun deze Decentrale Applicatie</h4>
+            <p>
+              Bedankt dat je gebruikmaakt van de Boodschappen Tracker!
+            </p>
+            <p>
+              Deze applicatie is anders dan de meeste apps: hij draait volledig decentraal op de <strong>Internet Computer blockchain</strong>. Dit betekent dat er geen centrale servers van een groot bedrijf zijn en de applicatie stabiel zal draaien on chain.
+            </p>
+            <p>
+              Er zitten behoorlijk wat development uren in deze dapp en om de dapp draaiende te houden is rekenkracht nodig welke niet gratis is. Als je de meerwaarde van de applicatie waardeert ben ik je ontzettend dankbaar voor je bijdrage.
+            </p>
+            <p>
+              Elke bijdrage wordt enorm gewaardeerd en helpt om de applicatie draaiend te houden.
+            </p>
+            <p><strong>Hartelijk dank voor je steun!</strong></p>
+
+            <div className="button-group" style={{ marginTop: '1.5rem', justifyContent: 'center' }}>
+              <button className="button-primary" onClick={() => window.open(donationLinks[1], '_blank')}>€1</button>
+              <button className="button-primary" onClick={() => window.open(donationLinks[2], '_blank')}>€2</button>
+              <button className="button-primary" onClick={() => window.open(donationLinks[5], '_blank')}>€5</button>
+              <button className="button-primary" onClick={() => window.open(donationLinks[10], '_blank')}>€10</button>
+              <button className="button-primary" onClick={() => window.open(donationLinks[25], '_blank')}>€25</button>
+            </div>
+          </div>
         </CollapsibleSection>
 
       </main>

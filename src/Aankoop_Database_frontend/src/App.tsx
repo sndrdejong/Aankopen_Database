@@ -155,7 +155,7 @@ const PriceFinderTable = ({
           type="text"
           placeholder="Zoek op product, merk, winkel of prijs..."
           value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
+          onChange={e => setSearchTerm(e.target.value.replace(/\s+$/, ''))}
           maxLength={100}
         />
         <button onClick={() => setSearchTerm('')} className="button-secondary">Reset</button>
@@ -218,7 +218,7 @@ const UserManual = () => (
         <li>De Kracht van Gedeelde Data</li>
         <li>Hoofdscherm & Algemene Statistieken</li>
         <li>Beheer: Winkels en Producten Toevoegen</li>
-        <li>Nieuwe Aankoop Toevoegen (Bijdragen aan de Database)</li>
+        <li>Nieuwe Aankoop / Update Toevoegen (Bijdragen aan de Database)</li>
         <li>Beste Prijs Vinder (Gebaseerd op Ieders Input)</li>
         <li>Aankopen Historie (Openbaar Logboek)</li>
         <li>Dashboard: Collectieve Inzichten</li>
@@ -282,12 +282,13 @@ const UserManual = () => (
 
       <hr />
 
-      <h4>Nieuwe Aankoop Toevoegen (Bijdragen aan de Database)</h4>
-      <p>Dit is de kern van de collectieve inspanning. In de sectie "Nieuwe Aankoop Toevoegen" registreer je een aankoop en deel je deze prijsinformatie met iedereen. Het mag natuurlijk ook een simpele prijs update zijn als je die actief wilt toevoegen.</p>
+      <h4>Nieuwe Aankoop / Update Toevoegen (Bijdragen aan de Database)</h4>
+      <p>Dit is de kern van de collectieve inspanning. In deze sectie registreer je een aankoop en deel je deze prijsinformatie met iedereen. Het mag natuurlijk ook een simpele prijs update zijn als je die actief wilt toevoegen.</p>
       <ul>
         <li><strong>Product en Winkel selecteren:</strong> Kies uit de lijsten die door de gemeenschap zijn opgebouwd.</li>
         <li><strong>Automatisch invullen:</strong> De app vult de velden op basis van de <strong>laatst door énige gebruiker ingevoerde aankoop</strong> voor die product-winkelcombinatie (Blijf zelf goed controleren). Dit versnelt het invoerproces en bevordert consistentie.</li>
         <li><strong>Prijs- en Hoeveelheidvalidatie:</strong> Om de kwaliteit van de openbare data te beschermen, bevat de app slimme controles die waarschuwen of blokkeren bij onrealistische prijzen.</li>
+        <li><strong>Adviesprijs, geen aanbiedingen:</strong> Voer de standaard adviesprijs in, niet de prijs van een tijdelijke aanbieding. Dit houdt de data zuiver en stelt je in staat de analyse te gebruiken om te beoordelen of een aanbieding écht een goede deal is.</li>
       </ul>
 
       <hr />
@@ -592,7 +593,7 @@ function App() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await backend.addWinkel(formWinkel.naam, formWinkel.keten, formWinkel.land);
+      await backend.addWinkel(formWinkel.naam.trim(), formWinkel.keten.trim(), formWinkel.land);
       alert("Winkel toegevoegd!");
       setFormWinkel({ naam: '', keten: '', land: { NL: null } as Land });
       fetchAllData();
@@ -628,7 +629,7 @@ function App() {
     const { naam, keten, land } = editingWinkelData;
     setUpdatingItemId(id);
     try {
-      await backend.updateWinkel(id, naam, keten, land);
+      await backend.updateWinkel(id, naam.trim(), keten.trim(), land);
       alert("Winkel bijgewerkt.");
       setEditingWinkelId(null);
       fetchAllData();
@@ -653,7 +654,7 @@ function App() {
     }
 
     const cleanNaam = formProduct.naam.trim().toLowerCase();
-    const finalMerk = formProduct.merk.trim() === '' ? 'n.v.t.' : formProduct.merk;
+    const finalMerk = formProduct.merk.trim() === '' ? 'n.v.t.' : formProduct.merk.trim();
     const cleanMerk = finalMerk.toLowerCase();
     const newUnitKey = Object.keys(formProduct.standaardEenheid)[0];
 
@@ -674,7 +675,7 @@ function App() {
 
     setIsSubmitting(true);
     try {
-      await backend.addProduct(formProduct.naam, finalMerk, ['n.v.t.'], formProduct.standaardEenheid);
+      await backend.addProduct(formProduct.naam.trim(), finalMerk, ['n.v.t.'], formProduct.standaardEenheid);
       alert("Product toegevoegd!");
       setFormProduct({ naam: '', merk: '', standaardEenheid: {} as Eenheid });
       setProductSearchTerm('');
@@ -713,14 +714,14 @@ function App() {
       return;
     }
     const { naam, merk, trefwoorden, standaardEenheid } = editingProductData;
-    const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk;
-    if (products.some(p => p.id !== id && p.naam.trim().toLowerCase() === naam.trim().toLowerCase() && p.merk.trim().toLowerCase() === finalMerk.trim().toLowerCase())) {
+    const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk.trim();
+    if (products.some(p => p.id !== id && p.naam.trim().toLowerCase() === naam.trim().toLowerCase() && p.merk.trim().toLowerCase() === finalMerk.toLowerCase())) {
       if (!window.confirm("Dit product lijkt al te bestaan. Toch bijwerken?")) return;
     }
     setUpdatingItemId(id);
     try {
       const trefwoordenArray = trefwoorden.split(',').map(t => t.trim()).filter(Boolean);
-      await backend.updateProduct(id, naam, finalMerk, trefwoordenArray, standaardEenheid);
+      await backend.updateProduct(id, naam.trim(), finalMerk, trefwoordenArray, standaardEenheid);
       alert("Product bijgewerkt.");
       setEditingProductId(null);
       fetchAllData();
@@ -747,7 +748,7 @@ function App() {
     setIsSubmitting(true);
     try {
       const { productId, winkelId, bonOmschrijving, prijs, hoeveelheid } = formAankoop;
-      await backend.addAankoop(BigInt(productId), BigInt(winkelId), bonOmschrijving, parseFloat(prijs), parseFloat(hoeveelheid));
+      await backend.addAankoop(BigInt(productId), BigInt(winkelId), bonOmschrijving.trim(), parseFloat(prijs), parseFloat(hoeveelheid));
       alert("Aankoop toegevoegd!");
       setFormAankoop({ productId: '', winkelId: '', bonOmschrijving: '', prijs: '', hoeveelheid: '' });
       setProductSearch('');
@@ -937,7 +938,7 @@ function App() {
               type="text"
               placeholder="Zoek winkel op naam, plaats of land..."
               value={storeFilterSearchTerm}
-              onChange={e => setStoreFilterSearchTerm(e.target.value)}
+              onChange={e => setStoreFilterSearchTerm(e.target.value.replace(/\s+$/, ''))}
               maxLength={100}
             />
             <button onClick={() => setStoreFilterSearchTerm('')} className="button-secondary">Reset</button>
@@ -967,8 +968,8 @@ function App() {
 
         <CollapsibleSection title="Beheer: Winkels">
           <form onSubmit={handleAddWinkel} className="form-grid">
-            <input type="text" placeholder="Naam winkel" value={formWinkel.naam} onChange={e => setFormWinkel({ ...formWinkel, naam: e.target.value })} required maxLength={100} />
-            <input type="text" placeholder="Plaatsnaam" value={formWinkel.keten} onChange={e => setFormWinkel({ ...formWinkel, keten: e.target.value })} required maxLength={100} />
+            <input type="text" placeholder="Naam winkel" value={formWinkel.naam} onChange={e => setFormWinkel({ ...formWinkel, naam: e.target.value.replace(/\s+$/, '') })} required maxLength={100} />
+            <input type="text" placeholder="Plaatsnaam" value={formWinkel.keten} onChange={e => setFormWinkel({ ...formWinkel, keten: e.target.value.replace(/\s+$/, '') })} required maxLength={100} />
             <select value={Object.keys(formWinkel.land)[0]} onChange={e => setFormWinkel({ ...formWinkel, land: { [e.target.value]: null } as Land })} required>
               <option value="NL">Nederland</option>
               <option value="ES">Spanje</option>
@@ -978,7 +979,7 @@ function App() {
 
           <CollapsibleSection title="Bekijk Bestaande Winkels">
             <div className="filter-controls">
-              <input type="text" placeholder="Zoek op naam, plaats of land..." value={winkelSearchTerm} onChange={e => setWinkelSearchTerm(e.target.value)} maxLength={100} />
+              <input type="text" placeholder="Zoek op naam, plaats of land..." value={winkelSearchTerm} onChange={e => setWinkelSearchTerm(e.target.value.replace(/\s+$/, ''))} maxLength={100} />
               <button onClick={() => setWinkelSearchTerm('')} className="button-secondary">Reset</button>
             </div>
             <div className="table-container">
@@ -992,8 +993,8 @@ function App() {
                         {editingWinkelId === w.id ? (
                           <>
                             <td data-label="Land"><select value={Object.keys(editingWinkelData.land)[0]} onChange={e => setEditingWinkelData({ ...editingWinkelData, land: { [e.target.value]: null } as Land })}><option value="NL">NL</option><option value="ES">ES</option></select></td>
-                            <td data-label="Naam"><input type="text" value={editingWinkelData.naam} onChange={e => setEditingWinkelData({ ...editingWinkelData, naam: e.target.value })} maxLength={100} /></td>
-                            <td data-label="Keten"><input type="text" value={editingWinkelData.keten} onChange={e => setEditingWinkelData({ ...editingWinkelData, keten: e.target.value })} maxLength={100} /></td>
+                            <td data-label="Naam"><input type="text" value={editingWinkelData.naam} onChange={e => setEditingWinkelData({ ...editingWinkelData, naam: e.target.value.replace(/\s+$/, '') })} maxLength={100} /></td>
+                            <td data-label="Keten"><input type="text" value={editingWinkelData.keten} onChange={e => setEditingWinkelData({ ...editingWinkelData, keten: e.target.value.replace(/\s+$/, '') })} maxLength={100} /></td>
                             <td data-label="Acties" className="action-buttons">
                               <button onClick={() => handleUpdateWinkel(w.id)} className="button-success" disabled={updatingItemId === w.id}>{updatingItemId === w.id ? 'Opslaan...' : 'Opslaan'}</button>
                               <button onClick={() => setEditingWinkelId(null)} className="button-secondary">Annuleren</button>
@@ -1026,13 +1027,14 @@ function App() {
               placeholder="Naam product"
               value={formProduct.naam}
               onChange={e => {
-                setFormProduct({ ...formProduct, naam: e.target.value });
-                setProductSearchTerm(e.target.value);
+                const value = e.target.value.replace(/\s+$/, '');
+                setFormProduct({ ...formProduct, naam: value });
+                setProductSearchTerm(value);
               }}
               required
               maxLength={100}
             />
-            <input type="text" placeholder="Merk (optioneel)" value={formProduct.merk} onChange={e => setFormProduct({ ...formProduct, merk: e.target.value })} maxLength={100} />
+            <input type="text" placeholder="Merk (optioneel)" value={formProduct.merk} onChange={e => setFormProduct({ ...formProduct, merk: e.target.value.replace(/\s+$/, '') })} maxLength={100} />
             <select
               value={Object.keys(formProduct.standaardEenheid)[0] || ''}
               onChange={e => {
@@ -1061,7 +1063,7 @@ function App() {
 
           <CollapsibleSection title="Bekijk Bestaande Producten">
             <div className="filter-controls">
-              <input type="text" placeholder="Zoek op naam, merk of eenheid..." value={productSearchTerm} onChange={e => setProductSearchTerm(e.target.value)} maxLength={100} />
+              <input type="text" placeholder="Zoek op naam, merk of eenheid..." value={productSearchTerm} onChange={e => setProductSearchTerm(e.target.value.replace(/\s+$/, ''))} maxLength={100} />
               <button onClick={() => setProductSearchTerm('')} className="button-secondary">Reset</button>
             </div>
             <div className="table-container">
@@ -1074,8 +1076,8 @@ function App() {
                       <tr key={Number(p.id)}>
                         {editingProductId === p.id ? (
                           <>
-                            <td data-label="Naam"><input type="text" value={editingProductData.naam} onChange={e => setEditingProductData({ ...editingProductData, naam: e.target.value })} maxLength={100} /></td>
-                            <td data-label="Merk"><input type="text" placeholder="Merk (optioneel)" value={editingProductData.merk} onChange={e => setEditingProductData({ ...editingProductData, merk: e.target.value })} maxLength={100} /></td>
+                            <td data-label="Naam"><input type="text" value={editingProductData.naam} onChange={e => setEditingProductData({ ...editingProductData, naam: e.target.value.replace(/\s+$/, '') })} maxLength={100} /></td>
+                            <td data-label="Merk"><input type="text" placeholder="Merk (optioneel)" value={editingProductData.merk} onChange={e => setEditingProductData({ ...editingProductData, merk: e.target.value.replace(/\s+$/, '') })} maxLength={100} /></td>
                             <td data-label="Eenheid">{formatEenheid(editingProductData.standaardEenheid).replace('per ', '')}</td>
                             <td data-label="Acties" className="action-buttons">
                               <button onClick={() => handleUpdateProduct(p.id)} className="button-success" disabled={updatingItemId === p.id}>{updatingItemId === p.id ? 'Opslaan...' : 'Opslaan'}</button>
@@ -1102,12 +1104,12 @@ function App() {
           </CollapsibleSection>
         </CollapsibleSection>
 
-        <CollapsibleSection title="Nieuwe Aankoop Toevoegen">
+        <CollapsibleSection title="Nieuwe Aankoop / Update Toevoegen">
           <form onSubmit={handleAddAankoop} className="form-grid">
             <div className="form-field">
               <label htmlFor="product-select">Product:</label>
               <input id="product-select" list="product-options" value={productSearch} onChange={e => {
-                const value = e.target.value;
+                const value = e.target.value.replace(/\s+$/, '');
                 setProductSearch(value);
                 const selectedProd = products.find(p => `${p.naam} (${p.merk})` === value);
                 setPriceWarning('');
@@ -1122,7 +1124,7 @@ function App() {
             <div className="form-field">
               <label htmlFor="winkel-select">Winkel:</label>
               <input id="winkel-select" list="winkel-options" value={winkelSearch} onChange={e => {
-                const value = e.target.value;
+                const value = e.target.value.replace(/\s+$/, '');
                 setWinkelSearch(value);
                 const selectedWinkel = filteredWinkelsForPurchaseForm.find(w => `${Object.keys(w.land)[0]} - ${w.naam} (${w.keten})` === value);
                 setPriceWarning('');
@@ -1136,7 +1138,7 @@ function App() {
             </datalist>
             <div className="form-field">
               <label htmlFor="bon-omschrijving">Bon omschrijving:</label>
-              <input id="bon-omschrijving" type="text" placeholder="Bon omschrijving" value={formAankoop.bonOmschrijving} onChange={e => setFormAankoop({ ...formAankoop, bonOmschrijving: e.target.value })} required className={suggestedFields.has('bonOmschrijving') ? 'suggested-input' : ''} onInput={() => suggestedFields.delete('bonOmschrijving') && setSuggestedFields(new Set(suggestedFields))} maxLength={100} />
+              <input id="bon-omschrijving" type="text" placeholder="Bon omschrijving" value={formAankoop.bonOmschrijving} onChange={e => setFormAankoop({ ...formAankoop, bonOmschrijving: e.target.value.replace(/\s+$/, '') })} required className={suggestedFields.has('bonOmschrijving') ? 'suggested-input' : ''} onInput={() => suggestedFields.delete('bonOmschrijving') && setSuggestedFields(new Set(suggestedFields))} maxLength={100} />
             </div>
             <div className="form-field">
               <label htmlFor="prijs">Prijs (€):</label>
@@ -1186,7 +1188,7 @@ function App() {
 
         <CollapsibleSection title="Aankopen Historie">
           <div className="filter-controls">
-            <input type="text" placeholder="Zoek op alle kolommen..." value={aankoopSearchTerm} onChange={e => setAankoopSearchTerm(e.target.value)} maxLength={100} />
+            <input type="text" placeholder="Zoek op alle kolommen..." value={aankoopSearchTerm} onChange={e => setAankoopSearchTerm(e.target.value.replace(/\s+$/, ''))} maxLength={100} />
             <button onClick={() => setAankoopSearchTerm('')} className="button-secondary">Reset</button>
           </div>
           <div className="table-container">
@@ -1224,6 +1226,7 @@ function App() {
             aankopen={aankopen}
             products={products}
             winkels={winkels}
+            selectedStoreIds={selectedStoreIds}
           />
         </CollapsibleSection>
 

@@ -10,15 +10,20 @@ interface Props {
   aankopen: AankoopExtended[];
   products: Product[];
   winkels: Winkel[];
+  selectedStoreIds: Set<bigint>;
 }
 
-const PrijsOntwikkeling: React.FC<Props> = ({ aankopen, products, winkels }) => {
+const PrijsOntwikkeling: React.FC<Props> = ({ aankopen, products, winkels, selectedStoreIds }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState<SortOrder>('verandering');
 
   const prijsOntwikkelingData = useMemo(() => {
+    const filteredAankopen = selectedStoreIds.size > 0
+      ? aankopen.filter(([a]) => selectedStoreIds.has(a.winkelId))
+      : aankopen;
+
     const dataByProductAndWinkel = new Map<string, Aankoop[]>();
-    aankopen.forEach(([a]) => {
+    filteredAankopen.forEach(([a]) => {
       const key = `${a.productId}-${a.winkelId}`;
       if (!dataByProductAndWinkel.has(key)) {
         dataByProductAndWinkel.set(key, []);
@@ -65,7 +70,7 @@ const PrijsOntwikkeling: React.FC<Props> = ({ aankopen, products, winkels }) => 
     });
 
     return result;
-  }, [aankopen, products, winkels]);
+  }, [aankopen, products, winkels, selectedStoreIds]);
 
   const filteredAndSortedData = useMemo(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();

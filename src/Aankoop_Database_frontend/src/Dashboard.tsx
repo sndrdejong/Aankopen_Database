@@ -12,6 +12,7 @@ interface DashboardProps {
   aankopen: AankoopExtended[];
   products: Product[];
   winkels: Winkel[];
+  selectedStoreIds: Set<bigint>;
 }
 
 // Helper component to make each dashboard widget collapsible
@@ -33,21 +34,26 @@ const CollapsibleDashboardWidget = ({ title, children }: { title: string, childr
 };
 
 
-const Dashboard: React.FC<DashboardProps> = ({ aankopen, products, winkels }) => {
+const Dashboard: React.FC<DashboardProps> = ({ aankopen, products, winkels, selectedStoreIds }) => {
   if (aankopen.length === 0) {
     return <p>Voeg eerst enkele aankopen toe om het dashboard te kunnen zien.</p>;
   }
 
   return (
-    <div className="dashboard-grid">
-      <CollapsibleDashboardWidget title="Prijsontwikkeling Producten per Winkel">
-        <PrijsOntwikkeling aankopen={aankopen} products={products} winkels={winkels} />
-      </CollapsibleDashboardWidget>
-      
-      <CollapsibleDashboardWidget title="Goedkoopste Winkels per Product">
-        <WinkelPrijsVergelijking aankopen={aankopen} products={products} winkels={winkels} />
-      </CollapsibleDashboardWidget>
-    </div>
+    <>
+      <div className="orientation-tip">
+        <span>📱 Voor de beste weergave, kantel je scherm.</span>
+      </div>
+      <div className="dashboard-grid">
+        <CollapsibleDashboardWidget title="Prijsontwikkeling Producten per Winkel">
+          <PrijsOntwikkeling aankopen={aankopen} products={products} winkels={winkels} selectedStoreIds={selectedStoreIds} />
+        </CollapsibleDashboardWidget>
+        
+        <CollapsibleDashboardWidget title="Goedkoopste Winkels per Product">
+          <WinkelPrijsVergelijking aankopen={aankopen} products={products} winkels={winkels} selectedStoreIds={selectedStoreIds} />
+        </CollapsibleDashboardWidget>
+      </div>
+    </>
   );
 };
 

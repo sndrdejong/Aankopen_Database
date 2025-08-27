@@ -1,10 +1,11 @@
 // src/Dashboard.tsx
-
 import React, { useState, ReactNode } from 'react';
 import { Aankoop, Product, Winkel } from 'declarations/Aankoop_Database_backend/Aankoop_Database_backend.did';
 
 import WinkelPrijsVergelijking from './WinkelPrijsVergelijking';
 import PrijsOntwikkeling from './PrijsOntwikkeling';
+import ProductenMetEnkelePrijs from './ProductenMetEnkelePrijs';
+import VerouderdePrijzen from './VerouderdePrijzen';
 
 type AankoopExtended = [Aankoop, string, string];
 
@@ -51,6 +52,14 @@ const Dashboard: React.FC<DashboardProps> = ({ aankopen, products, winkels, sele
         
         <CollapsibleDashboardWidget title="Goedkoopste Winkels per Product">
           <WinkelPrijsVergelijking aankopen={aankopen} products={products} winkels={winkels} selectedStoreIds={selectedStoreIds} />
+        </CollapsibleDashboardWidget>
+
+        <CollapsibleDashboardWidget title="Producten met slechts één prijs">
+          <ProductenMetEnkelePrijs aankopen={aankopen} products={products} winkels={winkels} selectedStoreIds={selectedStoreIds} />
+        </CollapsibleDashboardWidget>
+
+        <CollapsibleDashboardWidget title="Prijzen Updaten: Help Mee!">
+          <VerouderdePrijzen aankopen={aankopen} products={products} winkels={winkels} selectedStoreIds={selectedStoreIds} />
         </CollapsibleDashboardWidget>
       </div>
     </>

@@ -1,5 +1,4 @@
 // src/WinkelPrijsVergelijking.tsx
-
 import React, { useMemo, useState } from 'react';
 import { Aankoop, Product, Winkel, Eenheid } from 'declarations/Aankoop_Database_backend/Aankoop_Database_backend.did';
 
@@ -87,8 +86,8 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels,
         if (winkelData.length >= 2) {
             const goedkoopste = winkelData[0].eenheidsprijs;
             const duurste = winkelData[winkelData.length - 1].eenheidsprijs;
-            if (duurste > 0) {
-                prijsVerschilPercentage = ((duurste - goedkoopste) / duurste) * 100;
+            if (goedkoopste > 0) { // Voorkom delen door nul
+                prijsVerschilPercentage = ((duurste - goedkoopste) / goedkoopste) * 100;
             }
         }
 
@@ -105,7 +104,8 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels,
         const searchableText = `${product.naam} ${product.merk}`.toLowerCase();
         return searchableText.includes(lowerCaseSearchTerm);
       })
-      .sort((a, b) => a.product!.naam.localeCompare(b.product!.naam));
+      // Sorteer op het grootste prijsverschil
+      .sort((a, b) => (b.prijsVerschilPercentage || 0) - (a.prijsVerschilPercentage || 0));
   }, [prijsVergelijkingData, searchTerm, products]);
 
 
@@ -126,9 +126,9 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels,
           <div key={String(productId)} className="widget-subsection">
             <h5>
                 {product?.naam} ({product?.merk})
-                {prijsVerschilPercentage !== null && prijsVerschilPercentage > 0 && (
-                    <span className="price-decrease" style={{ marginLeft: '0.5rem', fontSize: '0.8em' }}>
-                        {prijsVerschilPercentage.toFixed(0)}% goedkoper
+                {prijsVerschilPercentage !== null && prijsVerschilPercentage > 1 && ( // Toon alleen als het verschil de moeite waard is
+                    <span className="price-decrease" style={{ marginLeft: '0.5rem', fontSize: '0.8em', fontWeight: 'bold' }}>
+                        Tot {prijsVerschilPercentage.toFixed(0)}% goedkoper
                     </span>
                 )}
             </h5>
@@ -144,7 +144,7 @@ const WinkelPrijsVergelijking: React.FC<Props> = ({ aankopen, products, winkels,
                   </tr>
                 </thead>
                 <tbody>
-                  {winkelData.slice(0, 5).map((data, index) => (
+                  {winkelData.map((data, index) => (
                     <tr key={index}>
                       <td>{data.winkelNaam}</td>
                       <td>{data.keten}</td>

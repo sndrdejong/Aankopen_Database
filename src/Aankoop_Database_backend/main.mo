@@ -7,7 +7,7 @@ import Time "mo:base/Time";
 import Iter "mo:base/Iter";
 import Debug "mo:base/Debug";
 import Buffer "mo:base/Buffer";
-import Principal "mo:base/Principal"; // <-- 1. Import Principal module
+import Principal "mo:base/Principal";
 
 persistent actor BoodschappenDB {
 
@@ -17,7 +17,7 @@ persistent actor BoodschappenDB {
   public type Land = { #NL; #ES };
   public type Eenheid = {
     #STUK; #METER; #KILOGRAM; #GRAM;
-    #LITER; #MILLILITER; #ROL; #TABLET;    
+    #LITER; #MILLILITER; #ROL; #TABLET;
   };
   public type Winkel = { id : Nat; naam : Text; keten : Text; land : Land };
   public type Product = {
@@ -51,11 +51,12 @@ persistent actor BoodschappenDB {
   };
 
   // ==========================================================
-  // BEVEILIGING: GEDEFINIEERDE PRINCIPALS
+  // BEVEILIGING & CONFIGURATIE
   // ==========================================================
   private let frontendCanisterId : Text = "gndzg-rqaaa-aaaai-q32xa-cai";
   private let developerPrincipalId : Text = "2vxsx-fae";
-  
+  private let adminPassword : Text = "172638421"; // Admin wachtwoord
+
   // ==========================================================
   // STATE VARIABELEN (ongewijzigd)
   // ==========================================================
@@ -71,16 +72,22 @@ persistent actor BoodschappenDB {
   var aankopen = Map.new<Nat, Aankoop>();
 
   // ==========================================================
-  // BEVEILIGING: GUARD FUNCTIE (GECORRIGEERD)
+  // BEVEILIGING: GUARD FUNCTIE (ongewijzigd)
   // ==========================================================
   private func authorizeCaller(caller : Principal) {
     let frontendPrincipal = Principal.fromText(frontendCanisterId);
     let developerPrincipal = Principal.fromText(developerPrincipalId);
 
-    // Sta alleen aanroepen toe van de frontend canister of de ontwikkelaar.
     if (caller != frontendPrincipal and caller != developerPrincipal) {
       Debug.trap("Unauthorized: Caller is not authorized to perform this action.");
     };
+  };
+
+  private func isAdmin(password: ?Text): Bool {
+    switch (password) {
+      case (?p) { return p == adminPassword; };
+      case (null) { return false; };
+    }
   };
 
   // ==========================================================
@@ -107,10 +114,10 @@ persistent actor BoodschappenDB {
   };
 
   // ==========================================================
-  // BEVEILIGDE UPDATE FUNCTIES (GECORRIGEERD)
+  // UPDATE FUNCTIES (ongewijzigd, behalve admin-logica)
   // ==========================================================
   public shared (msg) func addWinkel(naam : Text, keten : Text, land : Land) : async Nat {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+    authorizeCaller(msg.caller);
     let id = nextWinkelId;
     let newWinkel : Winkel = { id; naam; keten; land; };
     Map.set(winkels, Map.nhash, id, newWinkel);
@@ -119,7 +126,7 @@ persistent actor BoodschappenDB {
   };
 
   public shared (msg) func addProduct(naam : Text, merk : Text, trefwoorden : [Text], standaardEenheid : Eenheid) : async Nat {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+    authorizeCaller(msg.caller);
     let id = nextProductId;
     let newProduct : Product = { id; naam; merk; trefwoorden; standaardEenheid };
     Map.set(producten, Map.nhash, id, newProduct);
@@ -134,7 +141,7 @@ persistent actor BoodschappenDB {
     prijs : Float,
     hoeveelheid : Float,
   ) : async Nat {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+    authorizeCaller(msg.caller);
     if (Map.get(producten, Map.nhash, productId) == null) {
       Debug.trap("Product niet gevonden");
     };
@@ -159,18 +166,38 @@ persistent actor BoodschappenDB {
     return id;
   };
 
-  public shared (msg) func deleteAankoop(id : Nat) : async Result.Result<Null, Text> {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
-    if (Map.get(aankopen, Map.nhash, id) != null) {
-      Map.delete(aankopen, Map.nhash, id);
-      return #ok(null);
-    } else {
-      return #err("Aankoop met deze ID niet gevonden.");
+  // ==========================================================
+  // BEVEILIGDE UPDATE & DELETE FUNCTIES (MET ADMIN OVERRIDE)
+  // ==========================================================
+
+  public shared (msg) func deleteAankoop(id : Nat, adminPassword: ?Text) : async Result.Result<Null, Text> {
+    authorizeCaller(msg.caller);
+    switch (Map.get(aankopen, Map.nhash, id)) {
+      case (null) {
+        return #err("Aankoop met deze ID niet gevonden.");
+      };
+      case (?aankoop) {
+        // Admin mag altijd verwijderen
+        if (isAdmin(adminPassword)) {
+          Map.delete(aankopen, Map.nhash, id);
+          return #ok(null);
+        };
+
+        // Normale gebruiker: check de 5 minuten limiet
+        let fiveMinutesInNanos : Nat = 300_000_000_000;
+        if (Time.now() - aankoop.datum <= fiveMinutesInNanos) {
+          Map.delete(aankopen, Map.nhash, id);
+          return #ok(null);
+        } else {
+          return #err("Aankoop kan niet verwijderd worden na 5 minuten.");
+        }
+      };
     };
   };
-  
-  public shared (msg) func updateWinkel(id : Nat, naam : Text, keten : Text, land : Land) : async Result.Result<Null, Text> {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+
+  public shared (msg) func updateWinkel(id : Nat, naam : Text, keten : Text, land : Land, adminPassword: ?Text) : async Result.Result<Null, Text> {
+    authorizeCaller(msg.caller);
+    // Hoewel er geen backend-validatie is om te omzeilen, voegen we de parameter toe voor consistentie met de frontend.
     switch (Map.get(winkels, Map.nhash, id)) {
       case (null) {
         return #err("Winkel met deze ID niet gevonden.");
@@ -183,11 +210,19 @@ persistent actor BoodschappenDB {
     };
   };
 
-  public shared (msg) func deleteWinkel(id : Nat) : async Result.Result<Null, Text> {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+  public shared (msg) func deleteWinkel(id : Nat, adminPassword: ?Text) : async Result.Result<Null, Text> {
+    authorizeCaller(msg.caller);
     if (Map.get(winkels, Map.nhash, id) == null) {
       return #err("Winkel met deze ID niet gevonden.");
     };
+
+    // Admin mag altijd verwijderen, sla de check over
+    if (isAdmin(adminPassword)) {
+      Map.delete(winkels, Map.nhash, id);
+      return #ok(null);
+    }; // <-- **DEZE HAAK WAS VERGETEN**
+
+    // Normale gebruiker: check op gekoppelde aankopen
     for ((_, aankoop) in Map.entries(aankopen)) {
       if (aankoop.winkelId == id) {
         return #err("Kan winkel niet verwijderen: er zijn nog aankopen aan gekoppeld.");
@@ -196,9 +231,10 @@ persistent actor BoodschappenDB {
     Map.delete(winkels, Map.nhash, id);
     return #ok(null);
   };
-  
-  public shared (msg) func updateProduct(id : Nat, naam : Text, merk : Text, trefwoorden : [Text], standaardEenheid : Eenheid) : async Result.Result<Null, Text> {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+
+  public shared (msg) func updateProduct(id : Nat, naam : Text, merk : Text, trefwoorden : [Text], standaardEenheid : Eenheid, adminPassword: ?Text) : async Result.Result<Null, Text> {
+    authorizeCaller(msg.caller);
+    // Hoewel er geen backend-validatie is om te omzeilen, voegen we de parameter toe voor consistentie met de frontend.
     switch (Map.get(producten, Map.nhash, id)) {
       case (null) {
         return #err("Product met deze ID niet gevonden.");
@@ -210,12 +246,20 @@ persistent actor BoodschappenDB {
       };
     };
   };
-  
-  public shared (msg) func deleteProduct(id : Nat) : async Result.Result<Null, Text> {
-    authorizeCaller(msg.caller); // <-- GUARD met argument
+
+  public shared (msg) func deleteProduct(id : Nat, adminPassword: ?Text) : async Result.Result<Null, Text> {
+    authorizeCaller(msg.caller);
     if (Map.get(producten, Map.nhash, id) == null) {
       return #err("Product met deze ID niet gevonden.");
     };
+
+    // Admin mag altijd verwijderen, sla de check over
+    if (isAdmin(adminPassword)) {
+      Map.delete(producten, Map.nhash, id);
+      return #ok(null);
+    }; // <-- **DEZE HAAK WAS VERGETEN**
+
+    // Normale gebruiker: check op gekoppelde aankopen
     for ((_, aankoop) in Map.entries(aankopen)) {
       if (aankoop.productId == id) {
         return #err("Kan product niet verwijderen: er zijn nog aankopen aan gekoppeld.");
@@ -224,9 +268,9 @@ persistent actor BoodschappenDB {
     Map.delete(producten, Map.nhash, id);
     return #ok(null);
   };
-  
+
   // ==========================================================
-  // PRIVATE & QUERY FUNCTIES (ongewijzigd)
+  // QUERY FUNCTIES (ongewijzigd)
   // ==========================================================
   private func berekenEenheidsprijs(aankoop : Aankoop) : ?Float {
     if (aankoop.hoeveelheid > 0) {
@@ -313,7 +357,7 @@ persistent actor BoodschappenDB {
     };
     return besteInfo;
   };
-  
+
   public query func findAllBestPrices() : async [AllBestPricesResult] {
     let results = Buffer.Buffer<AllBestPricesResult>(0);
 

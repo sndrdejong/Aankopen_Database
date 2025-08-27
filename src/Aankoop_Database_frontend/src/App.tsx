@@ -246,10 +246,11 @@ const PriceFinderTable = ({
 };
 
 // Component for the user manual
-const UserManual = () => (
+const UserManual = ({ onAdminLogin }: { onAdminLogin: () => void }) => (
   <CollapsibleSection title="📖 Gebruikershandleiding Boodschappen Tracker dApp 🛒">
     <div style={{ padding: '0.5rem', lineHeight: '1.6' }}>
       <p>Welkom bij de Boodschappen Tracker! Deze handleiding helpt je op weg om het maximale uit deze decentrale en collaboratieve applicatie (dApp) te halen. Samen bouwen we aan een openbare prijsdatabase!</p>
+      {/* ... (rest van de handleiding blijft hetzelfde) ... */}
 
       <h4>Inhoudsopgave</h4>
       <ul>
@@ -356,6 +357,10 @@ const UserManual = () => (
 
       <h4>Belangrijke Opmerking</h4>
       <p>Alle berekeningen, vergelijkingen en "beste prijs"-aanbevelingen zijn <strong>uitsluitend gebaseerd op de data die door alle gebruikers gezamenlijk is ingevoerd</strong>. De getoonde prijzen zijn dus niet gegarandeerd de actuele prijzen in de winkel, maar een afspiegeling van de door de gemeenschap geregistreerde aankoopgeschiedenis. De kwaliteit van de inzichten is een directe reflectie van de nauwkeurigheid en volledigheid van ieders bijdrage.</p>
+
+      <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+        <button onClick={onAdminLogin} className="button-secondary">Admin Login</button>
+      </div>
     </div>
   </CollapsibleSection>
 );
@@ -400,6 +405,14 @@ const DonationSection = () => {
   );
 };
 
+// Admin banner component
+const AdminBanner = ({ onLogout }: { onLogout: () => void }) => (
+  <div className="admin-banner">
+    <span>🛡️ Admin Modus Actief</span>
+    <button onClick={onLogout} className="button-danger">Logout</button>
+  </div>
+);
+
 
 const DEVIATION_WARNING_THRESHOLD = 50;
 const DEVIATION_BLOCK_THRESHOLD = 200;
@@ -440,6 +453,10 @@ function App() {
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [exportWithDescription, setExportWithDescription] = useState(false);
 
+  // --- START: Admin Mode State ---
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [adminPassword, setAdminPassword] = useState<[string] | []>([]); // Use array for optional param
+  // --- END: Admin Mode State ---
 
   const [winkelSearchTerm, setWinkelSearchTerm] = useState('');
   const [productSearchTerm, setProductSearchTerm] = useState('');
@@ -471,15 +488,28 @@ function App() {
   const [priceWarning, setPriceWarning] = useState<string>('');
   const [isSubmissionBlocked, setIsSubmissionBlocked] = useState<boolean>(false);
 
-  // Nieuwe state voor het bijhouden van alle formulier validatiefouten
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
 
-  /**
-   * Herbruikbare onBlur handler voor tekstvelden om te valideren op scheldwoorden.
-   */
+  const handleAdminLogin = () => {
+    const pass = window.prompt("Voer het admin-wachtwoord in:");
+    if (pass === "172638421") {
+      setIsAdmin(true);
+      setAdminPassword([pass]);
+      alert("Admin-modus geactiveerd.");
+    } else if (pass) {
+      alert("Incorrect wachtwoord.");
+    }
+  };
+
+  const handleAdminLogout = () => {
+    setIsAdmin(false);
+    setAdminPassword([]);
+    alert("Admin-modus gedeactiveerd.");
+  };
+
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    if (containsProfanity(value, profanitySet)) {
+    if (containsProfanity(value, profanitySet) && !isAdmin) { // Admin mag scheldwoorden gebruiken
       setFormErrors(prev => ({ ...prev, [name]: 'Ongepast taalgebruik is niet toegestaan.' }));
     } else {
       setFormErrors(prev => {
@@ -490,7 +520,6 @@ function App() {
     }
   };
 
-  // Check of er validatiefouten zijn in de formulieren
   const hasWinkelFormErrors = !!(formErrors.winkelNaam || formErrors.winkelKeten);
   const hasProductFormErrors = !!(formErrors.productNaam || formErrors.productMerk);
   const hasAankoopFormErrors = !!formErrors.bonOmschrijving;
@@ -659,6 +688,12 @@ function App() {
   }, [formAankoop.productId, formAankoop.winkelId, aankopen]);
 
   useEffect(() => {
+    if (isAdmin) { // Sla prijscontroles over voor admin
+        setPriceWarning('');
+        setIsSubmissionBlocked(false);
+        return;
+    }
+    
     const { productId, prijs, hoeveelheid } = formAankoop;
     const priceNum = parseFloat(prijs);
     const qtyNum = parseFloat(hoeveelheid);
@@ -724,19 +759,18 @@ function App() {
         setIsSubmissionBlocked(false);
       }
     }
-  }, [formAankoop.productId, formAankoop.prijs, formAankoop.hoeveelheid, aankopen, products]);
+  }, [formAankoop.productId, formAankoop.prijs, formAankoop.hoeveelheid, aankopen, products, isAdmin]);
 
   const handleAddWinkel = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (hasWinkelFormErrors || isWinkelDuplicate) {
+    if (hasWinkelFormErrors || (isWinkelDuplicate && !isAdmin)) {
       alert("Los eerst de validatiefouten op.");
       return;
     }
 
-    // Als de winkel vergelijkbaar is, vraag om bevestiging
-    if (isWinkelSimilar) {
+    if (isWinkelSimilar && !isAdmin) {
       if (!window.confirm("Deze winkel lijkt al te bestaan. Weet u zeker dat u deze wilt toevoegen?")) {
-        return; // Stop de functie als de gebruiker op 'Annuleren' klikt
+        return;
       }
     }
 
@@ -755,10 +789,10 @@ function App() {
   };
 
   const handleDeleteWinkel = async (id: bigint) => {
-    if (window.confirm("Weet je zeker dat je deze winkel wilt verwijderen?")) {
+    if (window.confirm("Weet je zeker dat je deze winkel wilt verwijderen? Dit kan niet ongedaan worden gemaakt.")) {
       setDeletingItemId(id);
       try {
-        const result = await backend.deleteWinkel(id);
+        const result = await backend.deleteWinkel(id, adminPassword);
         if ('ok' in result) {
           alert("Winkel verwijderd.");
           fetchAllData();
@@ -778,7 +812,8 @@ function App() {
     const { naam, keten, land } = editingWinkelData;
     setUpdatingItemId(id);
     try {
-      await backend.updateWinkel(id, naam.trim(), keten.trim(), land);
+      // @ts-ignore: Adding optional parameter for admin password
+      await backend.updateWinkel(id, naam.trim(), keten.trim(), land, adminPassword);
       alert("Winkel bijgewerkt.");
       setEditingWinkelId(null);
       fetchAllData();
@@ -817,12 +852,12 @@ function App() {
       Object.keys(p.standaardEenheid)[0] === newUnitKey
     );
 
-    if (isDuplicate) {
+    if (isDuplicate && !isAdmin) {
       alert("Een product met deze exacte naam, merk en eenheid bestaat al. Toevoegen is niet toegestaan.");
       return;
     }
 
-    if (products.some(p => p.naam.trim().toLowerCase() === cleanNaam && p.merk.trim().toLowerCase() === cleanMerk)) {
+    if (products.some(p => p.naam.trim().toLowerCase() === cleanNaam && p.merk.trim().toLowerCase() === cleanMerk) && !isAdmin) {
       if (!window.confirm("Dit product met dit merk (maar een andere eenheid) bestaat al. Toch toevoegen?")) return;
     }
 
@@ -842,10 +877,10 @@ function App() {
   };
 
   const handleDeleteProduct = async (id: bigint) => {
-    if (window.confirm("Weet je zeker dat je dit product wilt verwijderen?")) {
+    if (window.confirm("Weet je zeker dat je dit product wilt verwijderen? Dit kan niet ongedaan worden gemaakt.")) {
       setDeletingItemId(id);
       try {
-        const result = await backend.deleteProduct(id);
+        const result = await backend.deleteProduct(id, adminPassword);
         if ('ok' in result) {
           alert("Product verwijderd.");
           fetchAllData();
@@ -862,19 +897,21 @@ function App() {
   };
 
   const handleUpdateProduct = async (id: bigint) => {
-    if (aankopen.filter(([a]) => a.productId === id).length > 2) {
+    const purchaseCount = aankopen.filter(([a]) => a.productId === id).length;
+    if (purchaseCount > 2 && !isAdmin) {
       alert("Product kan niet gewijzigd worden met meer dan 2 aankopen.");
       return;
     }
     const { naam, merk, trefwoorden, standaardEenheid } = editingProductData;
     const finalMerk = merk.trim() === '' ? 'n.v.t.' : merk.trim();
-    if (products.some(p => p.id !== id && p.naam.trim().toLowerCase() === naam.trim().toLowerCase() && p.merk.trim().toLowerCase() === finalMerk.toLowerCase())) {
+    if (products.some(p => p.id !== id && p.naam.trim().toLowerCase() === naam.trim().toLowerCase() && p.merk.trim().toLowerCase() === finalMerk.toLowerCase()) && !isAdmin) {
       if (!window.confirm("Dit product lijkt al te bestaan. Toch bijwerken?")) return;
     }
     setUpdatingItemId(id);
     try {
       const trefwoordenArray = trefwoorden.split(',').map(t => t.trim()).filter(Boolean);
-      await backend.updateProduct(id, naam.trim(), finalMerk, trefwoordenArray, standaardEenheid);
+      // @ts-ignore: Adding optional parameter for admin password
+      await backend.updateProduct(id, naam.trim(), finalMerk, trefwoordenArray, standaardEenheid, adminPassword);
       alert("Product bijgewerkt.");
       setEditingProductId(null);
       fetchAllData();
@@ -921,19 +958,16 @@ function App() {
   };
 
   const handleDeleteAankoop = async (id: bigint) => {
-    const aankoopToDelete = aankopen.find(([a]) => a.id === id)?.[0];
-    if (aankoopToDelete) {
-      const isOlderThan5Minutes = (Date.now() * 1_000_000 - Number(aankoopToDelete.datum)) > 300_000_000_000;
-      if (isOlderThan5Minutes) {
-        alert("Aankoop kan niet verwijderd worden na 5 minuten.");
-        return;
-      }
-    }
     if (window.confirm("Weet je zeker dat je deze aankoop wilt verwijderen?")) {
       setDeletingItemId(id);
       try {
-        await backend.deleteAankoop(id);
-        await fetchAllData();
+        const result = await backend.deleteAankoop(id, adminPassword);
+         if ('ok' in result) {
+          alert("Aankoop verwijderd.");
+          fetchAllData();
+        } else {
+          alert(`Fout: ${result.err}`);
+        }
       } catch (error) {
         alert("Fout bij verwijderen aankoop.");
         console.error(error);
@@ -1144,9 +1178,11 @@ function App() {
 
   return (
     <div className="app-container">
-      <header className="app-header">
+      <header className={`app-header ${isAdmin ? 'admin-mode' : ''}`}>
         <h1>🛒 Boodschappen Tracker</h1>
       </header>
+      
+      {isAdmin && <AdminBanner onLogout={handleAdminLogout} />}
 
       <DashboardStats
         aankopenCount={aankopen.length}
@@ -1157,7 +1193,7 @@ function App() {
 
       <DonationSection />
 
-      <UserManual />
+      <UserManual onAdminLogin={handleAdminLogin} />
 
       <main>
         <CollapsibleSection title="Beheer: Selecteer Winkels">
@@ -1292,7 +1328,7 @@ function App() {
                             <td data-label="Naam">{w.naam}</td>
                             <td data-label="Keten">{w.keten}</td>
                             <td data-label="Acties" className="action-buttons">
-                              <button onClick={() => startEditingWinkel(w)} className="button-secondary" disabled={purchaseCount > 2} title={purchaseCount > 2 ? "Kan niet wijzigen met >2 aankopen" : ""}>Wijzig</button>
+                              <button onClick={() => startEditingWinkel(w)} className="button-secondary" disabled={!isAdmin && purchaseCount > 2} title={!isAdmin && purchaseCount > 2 ? "Kan niet wijzigen met >2 aankopen" : ""}>Wijzig</button>
                               <button onClick={() => handleDeleteWinkel(w.id)} className="button-danger" disabled={deletingItemId === w.id}>{deletingItemId === w.id ? '...' : 'Verwijder'}</button>
                             </td>
                           </>
@@ -1402,7 +1438,7 @@ function App() {
                             <td data-label="Merk">{p.merk}</td>
                             <td data-label="Eenheid">{formatEenheid(p.standaardEenheid).replace('per ', '')}</td>
                             <td data-label="Acties" className="action-buttons">
-                              <button onClick={() => startEditingProduct(p)} className="button-secondary" disabled={purchaseCount > 2} title={purchaseCount > 2 ? "Kan niet wijzigen met >2 aankopen" : ""}>Wijzig</button>
+                              <button onClick={() => startEditingProduct(p)} className="button-secondary" disabled={!isAdmin && purchaseCount > 2} title={!isAdmin && purchaseCount > 2 ? "Kan niet wijzigen met >2 aankopen" : ""}>Wijzig</button>
                               <button onClick={() => handleDeleteProduct(p.id)} className="button-danger" disabled={deletingItemId === p.id}>{deletingItemId === p.id ? '...' : 'Verwijder'}</button>
                             </td>
                           </>
@@ -1543,7 +1579,6 @@ function App() {
                 {searchedAankopen.slice().sort(([a], [b]) => Number(b.datum) - Number(a.datum)).map(([aankoop, prodNaam, winkelNaam]) => {
                   const winkel = winkels.find(w => w.id === aankoop.winkelId);
                   const product = products.find(p => p.id === aankoop.productId);
-                  const isOlderThan5Minutes = (Date.now() * 1_000_000 - Number(aankoop.datum)) > 300_000_000_000;
                   return (
                     <tr key={Number(aankoop.id)}>
                       <td data-label="Product">{prodNaam}</td>
@@ -1555,7 +1590,7 @@ function App() {
                       <td data-label="Eenheid">{product ? formatEenheid(product.standaardEenheid, false).replace('per ', '') : 'n/a'}</td>
                       <td data-label="Datum">{new Date(Number(aankoop.datum) / 1_000_000).toLocaleString()}</td>
                       <td data-label="Actie">
-                        <button onClick={() => handleDeleteAankoop(aankoop.id)} className="button-danger" disabled={deletingItemId === aankoop.id || isOlderThan5Minutes} title={isOlderThan5Minutes ? "Kan niet verwijderen na 5 minuten" : ""}>
+                        <button onClick={() => handleDeleteAankoop(aankoop.id)} className="button-danger" disabled={deletingItemId === aankoop.id} >
                           {deletingItemId === aankoop.id ? '...' : 'Verwijder'}
                         </button>
                       </td>

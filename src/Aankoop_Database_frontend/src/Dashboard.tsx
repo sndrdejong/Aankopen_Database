@@ -18,7 +18,7 @@ interface DashboardProps {
 
 // Helper component to make each dashboard widget collapsible
 const CollapsibleDashboardWidget = ({ title, children }: { title: string, children: ReactNode }) => {
-  const [isOpen, setIsOpen] = useState(true); // Widgets are open by default
+  const [isOpen, setIsOpen] = useState(false); // Widgets are open by default
 
   return (
     <div className="dashboard-widget">
